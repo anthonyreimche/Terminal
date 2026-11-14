@@ -1,0 +1,17 @@
+{
+  "id": "terminal",
+  "name": "Terminal",
+  "version": "1.0.0",
+  "description": "A console under the main view (Ctrl+`) for scripted effects, live GLSL and JavaScript, and for sending photos to imaging APIs you set up yourself.",
+  "author": "Anthony Reimche",
+  "main": "dist/index.js",
+  "license": "GPL-3.0-or-later",
+  "categories": ["Develop", "Workflow"],
+  "keywords": ["terminal", "console", "script", "scripting", "glsl", "shader", "javascript", "effects", "api", "upscale", "background removal", "g'mic"],
+  "repository": "anthonyreimche/Terminal",
+  "minAppVersion": "3.2.5",
+  "permissions": {
+    "userOrigins": true,
+    "reason": "Sends the photos you choose to the imaging services whose addresses you enter, and only after you allow each address."
+  }
+}
