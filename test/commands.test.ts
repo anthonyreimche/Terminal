@@ -11,7 +11,7 @@ import type { CatalogPhoto } from "../src/safelight";
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0]);
 const photo = (id: string, filename = `${id}.NEF`) => ({ id, filename, folder: "" }) as CatalogPhoto;
 
-function rig(opts: { effects?: EffectRecord[]; endpoints?: Endpoint[]; targets?: CatalogPhoto[]; open?: CatalogPhoto | null; allowed?: boolean } = {}) {
+function rig(opts: { effects?: EffectRecord[]; endpoints?: Endpoint[]; targets?: CatalogPhoto[]; open?: CatalogPhoto | null; allowed?: boolean; gmic?: boolean } = {}) {
   let effects = opts.effects ?? [];
   let endpoints = opts.endpoints ?? [];
   const bag: Record<string, unknown> = { exposure: 0, "x.stage.k": false };
@@ -63,6 +63,10 @@ function rig(opts: { effects?: EffectRecord[]; endpoints?: Endpoint[]; targets?:
         return new Response(PNG, { status: 200, headers: { "Content-Type": "image/png" } });
       }),
     },
+    commands: {
+      has: (name) => name === "gmic" && opts.gmic === true,
+      run: vi.fn(async () => {}),
+    },
     keys: {
       get: async (slug) => keys.get(slug) ?? null,
       set: async (slug, v) => (keys.set(slug, v), true),
@@ -84,12 +88,12 @@ describe("fx", () => {
     expect(r.edits).toEqual([{ kind: "effect", isNew: true, record: { name: "Warm", slug: "warm", kind: "glsl", source: ENGINES.glsl.template } }]);
   });
 
-  it("opens a JS one with --js, and refuses G'MIC for now", async () => {
+  it("opens a JS one with --js, and refuses G'MIC without the G'MIC extension", async () => {
     const r = rig();
     await r.t.submit("fx new Post --js");
     expect(r.edits[0]).toMatchObject({ record: { kind: "js", source: ENGINES.js.template } });
     await r.t.submit("fx new G --gmic");
-    expect(r.out().at(-1)).toBe("error:G'MIC isn't available yet: no G'MIC engine is installed.");
+    expect(r.out().at(-1)).toBe(`error:${ENGINES.gmic.unavailable}`);
   });
 
   it("refuses a name in use", async () => {
@@ -270,3 +274,36 @@ describe("api", () => {
     expect(r.edits[0]).toMatchObject({ kind: "endpoint", isNew: true, record: { name: "Upscale", url: "https://u.example.com" } });
   });
 });
+
+describe("G'MIC effects", () => {
+  const gmic = (name: string, source = ENGINES.gmic.template): EffectRecord => ({ name, slug: name.toLowerCase(), kind: "gmic", source });
+
+  it("refuses a G'MIC effect while no extension runs the gmic command", async () => {
+    const r = rig();
+    await r.t.submit("fx new Soft --gmic");
+    expect(r.out()).toEqual([`error:${ENGINES.gmic.unavailable}`]);
+    expect(r.edits).toEqual([]);
+  });
+
+  it("starts a G'MIC effect from its template once the gmic command is there", async () => {
+    const r = rig({ gmic: true });
+    await r.t.submit("fx new Soft --gmic");
+    expect(r.edits[0]).toMatchObject({ kind: "effect", isNew: true, record: { kind: "gmic", source: ENGINES.gmic.template } });
+  });
+
+  it("runs a G'MIC effect through the gmic command, its settings as Name=value words", async () => {
+    const r = rig({ gmic: true, effects: [gmic("Soft")] });
+    await r.t.submit("run soft strength=0.4");
+    const run = r.services.commands.run as ReturnType<typeof vi.fn>;
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(run.mock.calls[0][0]).toBe("gmic");
+    expect(run.mock.calls[0][1]).toEqual(["script", "--source", ENGINES.gmic.template, "strength=0.4"]);
+  });
+
+  it("refuses to run a G'MIC effect without the gmic command", async () => {
+    const r = rig({ effects: [gmic("Soft")] });
+    await r.t.submit("run soft");
+    expect(r.out()).toEqual([`error:${ENGINES.gmic.unavailable}`]);
+  });
+});
+

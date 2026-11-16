@@ -344,8 +344,8 @@ var k = {
 		id: "gmic",
 		label: "G'MIC",
 		live: !1,
-		unavailable: "G'MIC isn't available yet: no G'MIC engine is installed.",
-		template: ""
+		unavailable: "G'MIC effects need the G'MIC extension: install it, turn it on and set it up in its panel.",
+		template: "# Runs once on each photo and imports the result as a new photo.\n# Each line is G'MIC words (gmic.eu/reference), run on the photo in turn.\n# #@gui lines give it settings, read here as $1, $2 and on.\n#@gui : Radius = float(2,0,20)\n#@gui : Sharpen = float(40,0,200)\nblur $1\nsharpen $2\n"
 	}
 };
 function se(e) {
@@ -474,33 +474,36 @@ function he() {
 }
 //#endregion
 //#region src/commands.ts
-var F = 3e5;
-function I(e) {
+var ge = 3e5;
+function _e(e, t) {
+	return t === "gmic" ? e.commands.has("gmic") : !k[t].unavailable;
+}
+function F(e) {
 	throw Error(`Usage: ${e}`);
 }
-function L(e, t, n) {
-	t || I(n);
+function I(e, t, n) {
+	t || F(n);
 	let r = s(t), i = e.effects().find((e) => e.slug === r);
 	if (!i) throw Error(`No effect named "${t}". Type fx list to see them.`);
 	return i;
 }
-function R(e, t, n) {
-	t || I(n);
+function L(e, t, n) {
+	t || F(n);
 	let r = s(t), i = e.endpoints().find((e) => e.slug === r);
 	if (!i) throw Error(`No endpoint named "${t}". Type api list to see them.`);
 	return i;
 }
-function z(e) {
+function R(e) {
 	let t = e.targets();
 	if (!t.length) throw Error("No photo to work on: select photos in the Library or open one in Develop.");
 	return t;
 }
-function B(e) {
+function z(e) {
 	let t = e.openPhoto();
 	if (!t) throw Error("Open a photo in Develop first.");
 	return t;
 }
-function ge(e, t) {
+function ve(e, t) {
 	if (t === "boolean") {
 		if (e === "true" || e === "on") return !0;
 		if (e === "false" || e === "off") return !1;
@@ -510,10 +513,10 @@ function ge(e, t) {
 	if (e.trim() === "" || !Number.isFinite(n)) throw Error(`Give a number, not "${e}"`);
 	return n;
 }
-function V(e) {
+function B(e) {
 	if (e.aborted) throw new DOMException("Stopped", "AbortError");
 }
-function _e(e) {
+function ye(e) {
 	return {
 		photos: {
 			summary: "the photos commands work on",
@@ -539,7 +542,7 @@ function _e(e) {
 			usage: "get <key>",
 			run(t, n) {
 				let [r] = n;
-				if (r || I("get <key>"), B(e), !e.develop.keys().some((e) => e.key === r)) throw Error(`Unknown value "${r}". Type params to list them.`);
+				if (r || F("get <key>"), z(e), !e.develop.keys().some((e) => e.key === r)) throw Error(`Unknown value "${r}". Type params to list them.`);
 				t.print(String(e.develop.get(r)));
 			}
 		},
@@ -547,12 +550,12 @@ function _e(e) {
 			summary: "change a develop value of the open photo (one undo step)",
 			usage: "set <key> <value> [<key> <value> …]",
 			async run(t, n) {
-				(n.length < 2 || n.length % 2) && I("set <key> <value> [<key> <value> …]"), B(e);
+				(n.length < 2 || n.length % 2) && F("set <key> <value> [<key> <value> …]"), z(e);
 				let r = e.develop.keys(), i = [];
 				for (let e = 0; e < n.length; e += 2) {
 					let t = r.find((t) => t.key === n[e]);
 					if (!t) throw Error(`Unknown value "${n[e]}". Type params to list them.`);
-					i.push([t.key, ge(n[e + 1], t.kind)]);
+					i.push([t.key, ve(n[e + 1], t.kind)]);
 				}
 				for (let [t, n] of i) e.develop.set(t, n);
 				await e.develop.commit("Terminal");
@@ -573,9 +576,9 @@ function _e(e) {
 			async run(t, n) {
 				let [i, ...a] = n, { positional: o, flags: c } = r(a), l = o[0];
 				switch (i) {
-					case "list": return ve(t, e);
+					case "list": return be(t, e);
 					case "new": {
-						l || I("fx new <name> [--glsl|--js]");
+						l || F("fx new <name> [--glsl|--js]");
 						let n = s(l);
 						if (!n) throw Error("Give the effect a name with letters or digits, at most 40 characters.");
 						if (e.effects().some((e) => e.slug === n)) throw Error(`There is already an effect named "${l}". Use fx edit.`);
@@ -584,7 +587,7 @@ function _e(e) {
 							"gmic",
 							"glsl"
 						].find((e) => c.includes(e)) ?? "glsl", i = k[r];
-						if (i.unavailable) throw Error(i.unavailable);
+						if (!_e(e, r)) throw Error(i.unavailable ?? "");
 						return e.edit({
 							kind: "effect",
 							isNew: !0,
@@ -597,7 +600,7 @@ function _e(e) {
 						}), t.info(`Editing ${l} (${i.label}). Save keeps it.`);
 					}
 					case "edit": {
-						let n = L(e, l, "fx edit <name>");
+						let n = I(e, l, "fx edit <name>");
 						return e.edit({
 							kind: "effect",
 							isNew: !1,
@@ -605,15 +608,15 @@ function _e(e) {
 						}), t.info(`Editing ${n.name}.`);
 					}
 					case "rm": {
-						let n = L(e, l, "fx rm <name>");
+						let n = I(e, l, "fx rm <name>");
 						return e.saveEffects(e.effects().filter((e) => e.slug !== n.slug)), t.print(`Removed ${n.name}.`);
 					}
 					case "apply":
 					case "off": {
-						let n = L(e, l, `fx ${i} <name>${i === "apply" ? " [amount]" : ""}`);
+						let n = I(e, l, `fx ${i} <name>${i === "apply" ? " [amount]" : ""}`);
 						if (n.kind !== "glsl") throw Error(`${n.name} isn't a live effect: run it with run ${n.slug}`);
 						if (!e.isLive(n.slug)) throw Error(`${n.name} has errors and isn't running. Fix it with fx edit ${n.slug}.`);
-						B(e);
+						z(e);
 						let r = 0;
 						if (i === "apply") {
 							if (r = o[1] === void 0 ? 1 : Number(o[1]), !Number.isFinite(r)) throw Error(`Give the amount as a number from 0 to 1, not "${o[1]}"`);
@@ -621,7 +624,7 @@ function _e(e) {
 						}
 						return e.develop.set(`${P(n.slug)}.${N}`, r), await e.develop.commit(`Terminal: ${n.name}`), i === "apply" && e.showEffectsPanel(), t.print(r > 0 ? `${n.name} at ${r}.` : `${n.name} off.`);
 					}
-					default: I("fx <list|new|edit|rm|apply|off> …");
+					default: F("fx <list|new|edit|rm|apply|off> …");
 				}
 			}
 		},
@@ -629,17 +632,26 @@ function _e(e) {
 			summary: "run a script effect on the photos, each into a new photo",
 			usage: "run <name> [param=value …]",
 			async run(t, n) {
-				let { positional: i, named: a } = r(n), o = L(e, i[0], "run <name> [param=value …]"), s = k[o.kind];
+				let { positional: i, named: a } = r(n), o = I(e, i[0], "run <name> [param=value …]"), s = k[o.kind];
 				if (s.live) throw Error(`${o.name} is a live effect: use fx apply ${o.slug}`);
-				if (s.unavailable) throw Error(s.unavailable);
+				if (!_e(e, o.kind)) throw Error(s.unavailable ?? "");
+				if (o.kind === "gmic") {
+					let n = Object.entries(a).map(([e, t]) => `${e}=${t}`);
+					return e.commands.run("gmic", [
+						"script",
+						"--source",
+						o.source,
+						...n
+					], t);
+				}
 				let l = c(o.source, o.kind);
 				if (!l.ok) throw Error(`${o.name}: ${l.errors.map((e) => `line ${e.line}: ${e.message}`).join("; ")}`);
 				let u = d(l.params, a);
 				if (!u.ok) throw Error(u.errors.join("; "));
-				await ye(t, e, o.slug, async (n, r) => {
+				await xe(t, e, o.slug, async (n, r) => {
 					r.update(`${e.displayName(n)}: rendering…`);
 					let i = await e.renderForScript(n);
-					V(t.signal);
+					B(t.signal);
 					let a = await e.runScript(o.source, {
 						image: i,
 						params: u.values,
@@ -676,7 +688,7 @@ function _e(e) {
 						return;
 					}
 					case "new": {
-						l || I("api new <name> [url]");
+						l || F("api new <name> [url]");
 						let n = s(l);
 						if (!n) throw Error("Give the endpoint a name with letters or digits, at most 40 characters.");
 						if (e.endpoints().some((e) => e.slug === n)) throw Error(`There is already an endpoint named "${l}". Use api edit.`);
@@ -687,7 +699,7 @@ function _e(e) {
 						}), t.info(`Setting up ${l}. Save keeps it.`);
 					}
 					case "edit": {
-						let n = R(e, l, "api edit <name>");
+						let n = L(e, l, "api edit <name>");
 						return e.edit({
 							kind: "endpoint",
 							isNew: !1,
@@ -695,23 +707,23 @@ function _e(e) {
 						}), t.info(`Editing ${n.name}.`);
 					}
 					case "rm": {
-						let n = R(e, l, "api rm <name>");
+						let n = L(e, l, "api rm <name>");
 						return e.saveEndpoints(e.endpoints().filter((e) => e.slug !== n.slug)), await e.keys.delete(n.slug), t.print(`Removed ${n.name} and its key.`);
 					}
 					case "key": {
-						let n = R(e, l, "api key <name>"), r = await t.askSecret(`Key for ${n.name}:`);
+						let n = L(e, l, "api key <name>"), r = await t.askSecret(`Key for ${n.name}:`);
 						if (r === null || !r.trim()) return t.info("No key set.");
 						let i = await e.keys.set(n.slug, r.trim());
 						return t.print(i ? `Key kept for ${n.name}.` : `Key held for ${n.name} until Safelight closes: this computer has no keychain.`);
 					}
-					case "send": return be(t, e, R(e, l, "api send <name> [placeholder=value …]"), c);
-					default: I("api <list|new|edit|rm|key|send> …");
+					case "send": return Se(t, e, L(e, l, "api send <name> [placeholder=value …]"), c);
+					default: F("api <list|new|edit|rm|key|send> …");
 				}
 			}
 		}
 	};
 }
-function ve(e, t) {
+function be(e, t) {
 	let n = t.effects();
 	if (!n.length) return e.info("No effects yet. Make one with: fx new <name> [--glsl|--js]");
 	for (let r of n) {
@@ -719,14 +731,14 @@ function ve(e, t) {
 		e.print(`${r.slug}  ${i.label}  ${a}${o}`);
 	}
 }
-async function ye(e, t, n, r) {
-	let i = z(t), a = 0;
+async function xe(e, t, n, r) {
+	let i = R(t), a = 0;
 	for (let o of i) {
-		V(e.signal);
+		B(e.signal);
 		let i = t.displayName(o), s = e.progress(`${i}: starting…`);
 		try {
 			let { data: c, ext: l } = await r(o, s);
-			V(e.signal);
+			B(e.signal);
 			let u = await t.importBeside(o, c, n, l);
 			if (!u.ok) throw Error(u.error);
 			a++, s.done(`${i} → ${u.name}`);
@@ -737,12 +749,12 @@ async function ye(e, t, n, r) {
 	}
 	i.length > 1 && e.info(`${a} of ${i.length} done.`);
 }
-async function H(e, t, n) {
+async function V(e, t, n) {
 	let r = new URL(t).origin, i = () => /* @__PURE__ */ Error(`Safelight isn't allowed to reach ${r}.`);
 	if (n.has(r)) throw i();
 	if (!await e.network.hasAccess(t) && !await e.network.requestAccess(t)) throw n.add(r), i();
 }
-async function be(e, t, n, r) {
+async function Se(e, t, n, r) {
 	let i = n.auth ? await t.keys.get(n.slug) : null, a = y(n, {
 		bytes: /* @__PURE__ */ new Uint8Array(),
 		type: n.format
@@ -751,9 +763,9 @@ async function be(e, t, n, r) {
 		filename: "photo"
 	}, i);
 	if (!a.ok) throw Error(a.error);
-	z(t);
+	R(t);
 	let o = /* @__PURE__ */ new Set();
-	await H(t, a.url, o), await ye(e, t, n.slug, async (s, c) => {
+	await V(t, a.url, o), await xe(e, t, n.slug, async (s, c) => {
 		let l = t.displayName(s);
 		c.update(`${l}: rendering…`);
 		let u = y(n, await t.renderForSend(s, n), {
@@ -761,17 +773,17 @@ async function be(e, t, n, r) {
 			filename: l
 		}, i);
 		if (!u.ok) throw Error(u.error);
-		new URL(u.url).origin !== new URL(a.url).origin && await H(t, u.url, o), c.update(`${l}: sending…`);
+		new URL(u.url).origin !== new URL(a.url).origin && await V(t, u.url, o), c.update(`${l}: sending…`);
 		let d = await oe(n, await t.network.fetch(u.url, {
 			...u.init,
-			timeoutMs: F,
+			timeoutMs: ge,
 			signal: e.signal
 		}));
 		if (d.kind === "url") {
-			await H(t, d.url, o), c.update(`${l}: downloading…`);
+			await V(t, d.url, o), c.update(`${l}: downloading…`);
 			let n = await t.network.fetch(d.url, {
 				method: "GET",
-				timeoutMs: F,
+				timeoutMs: ge,
 				signal: e.signal
 			});
 			d = n.ok ? O(new Uint8Array(await n.arrayBuffer()), "") : {
@@ -789,7 +801,7 @@ async function be(e, t, n, r) {
 }
 //#endregion
 //#region src/console/observable.ts
-var U = class {
+var H = class {
 	value;
 	listeners = /* @__PURE__ */ new Set();
 	constructor(e) {
@@ -801,176 +813,13 @@ var U = class {
 		for (let e of this.listeners) e();
 	}
 	subscribe = (e) => (this.listeners.add(e), () => this.listeners.delete(e));
-}, xe = {
-	fx: {
-		list: "your effects",
-		new: "write a new effect",
-		edit: "change an effect",
-		rm: "delete an effect",
-		apply: "turn a GLSL effect on for the open photo",
-		off: "turn a GLSL effect off for the open photo"
-	},
-	api: {
-		list: "your endpoints",
-		new: "set up an endpoint",
-		edit: "change an endpoint",
-		rm: "delete an endpoint and its key",
-		key: "enter an endpoint's key",
-		send: "send the photos"
-	}
-}, Se = [{
-	label: "help",
-	insert: "help ",
-	detail: "list the commands, or help <command>"
-}, {
-	label: "clear",
-	insert: "clear ",
-	detail: "clear the console (Ctrl+L)"
-}], Ce = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g;
-function we(e, t, n) {
-	let r = t;
-	for (; r > 0 && !/\s/.test(e[r - 1]);) r--;
-	let i = t;
-	for (; i < e.length && !/\s/.test(e[i]);) i++;
-	let a = e.slice(r, t), o = e.slice(0, r).trim(), s = o ? o.split(/\s+/) : [], c = e.slice(i).trim(), l = Ee(a, De(s, [...s, ...c ? c.split(/\s+/) : []], a, n)), u = l.length === 1 && l[0].insert.trim() === a ? [] : l;
-	return {
-		from: r,
-		to: i,
-		items: u
-	};
-}
-function Te(e, t, n) {
-	let r = e.slice(t.to), i = /^\s/.test(r) ? n.insert.trimEnd() : n.insert, a = t.from + i.length + (/^\s/.test(r) && i !== n.insert ? 1 : 0);
-	return {
-		text: e.slice(0, t.from) + i + r,
-		cursor: a
-	};
-}
-function Ee(e, t) {
-	let n = e.toLowerCase();
-	if (!n) return t;
-	let r = t.filter((e) => e.label.toLowerCase().startsWith(n)), i = t.filter((e) => !e.label.toLowerCase().startsWith(n) && e.label.toLowerCase().includes(n));
-	return [...r, ...i];
-}
-function De(e, t, n, r) {
-	let [i, a] = e, o = e.length;
-	if (o === 0) return n ? [...Object.entries(r.commands).map(([e, t]) => ({
-		label: e,
-		insert: `${e} `,
-		detail: t.summary
-	})), ...Se] : [];
-	if (i === "help") return o === 1 ? Object.entries(r.commands).map(([e, t]) => ({
-		label: e,
-		insert: `${e} `,
-		detail: t.summary
-	})) : [];
-	if (i === "fx") return Oe(o, a, t, r);
-	if (i === "run") {
-		if (o === 1) return W(r.effects().filter((e) => !k[e.kind].live && !k[e.kind].unavailable));
-		let i = r.effects().find((t) => t.slug === e[1]), a = i ? c(i.source, i.kind) : null;
-		return a?.ok ? Pe(a.params, t, n) : [];
-	}
-	if (i === "api") return ke(o, a, e, t, r);
-	if (i === "get") return o === 1 ? je(r.developKeys()) : [];
-	if (i === "set") return o % 2 == 1 ? je(r.developKeys()) : r.developKeys().find((t) => t.key === e[o - 1])?.kind === "boolean" ? [Me("true"), Me("false")] : [];
-	let s = r.commands[i];
-	return o === 1 && s?.subcommands ? s.subcommands.map((e) => ({
-		label: e,
-		insert: `${e} `
-	})) : [];
-}
-function Oe(e, t, n, r) {
-	if (e === 1) return Ae("fx", r);
-	let i = r.effects();
-	return e === 2 && (t === "edit" || t === "rm") ? W(i) : e === 2 && (t === "apply" || t === "off") ? W(i.filter((e) => e.kind === "glsl")) : e >= 3 && t === "new" ? ["glsl", "js"].filter((e) => !n.includes(`--${e}`)).map((e) => ({
-		label: `--${e}`,
-		insert: `--${e} `,
-		detail: k[e].label
-	})) : [];
-}
-function ke(e, t, n, r, i) {
-	if (e === 1) return Ae("api", i);
-	let a = i.endpoints();
-	if (e === 2 && t && [
-		"edit",
-		"rm",
-		"key",
-		"send"
-	].includes(t)) return a.map((e) => ({
-		label: e.slug,
-		insert: `${e.slug} `,
-		detail: e.url
-	}));
-	if (e >= 3 && t === "send") {
-		let e = a.find((e) => e.slug === n[2]);
-		if (!e) return [];
-		let t = [];
-		for (let n of [
-			e.url,
-			...Object.values(e.fields),
-			...Object.values(e.headers)
-		]) for (let e of n.matchAll(Ce)) e[1] !== "filename" && !t.includes(e[1]) && t.push(e[1]);
-		return t.filter((e) => !Ne(r, e)).map((e) => ({
-			label: `${e}=`,
-			insert: `${e}=`,
-			detail: "placeholder"
-		}));
-	}
-	return [];
-}
-function Ae(e, t) {
-	return (t.commands[e]?.subcommands ?? []).map((t) => ({
-		label: t,
-		insert: `${t} `,
-		detail: xe[e]?.[t]
-	}));
-}
-function W(e) {
-	return e.map((e) => ({
-		label: e.slug,
-		insert: `${e.slug} `,
-		detail: k[e.kind].label
-	}));
-}
-function je(e) {
-	return e.map((e) => ({
-		label: e.key,
-		insert: `${e.key} `,
-		detail: e.label === e.key ? void 0 : e.label
-	}));
-}
-function Me(e) {
-	return {
-		label: e,
-		insert: `${e} `
-	};
-}
-function Ne(e, t) {
-	return e.some((e) => e.startsWith(`${t}=`));
-}
-function Pe(e, t, n) {
-	let r = n.indexOf("=");
-	if (r > 0) {
-		let t = e.find((e) => e.key === n.slice(0, r));
-		return t?.type === "bool" ? ["true", "false"].map((e) => ({
-			label: `${t.key}=${e}`,
-			insert: `${t.key}=${e} `
-		})) : [];
-	}
-	return e.filter((e) => !Ne(t, e.key)).map((e) => ({
-		label: `${e.key}=`,
-		insert: `${e.key}=`,
-		detail: Fe(e)
-	}));
-}
-function Fe(e) {
-	if (e.type === "bool") return `bool, default ${e.default}`;
-	let t = e.min !== void 0 && e.max !== void 0 ? ` ${e.min} to ${e.max}` : "";
-	return `${e.type}${t}, default ${e.default}`;
-}
+};
 //#endregion
 //#region src/console/terminal.ts
-var Ie = class {
+function U(e) {
+	return typeof e == "function" ? e() : e;
+}
+var Ce = class {
 	commands;
 	options;
 	snapshot;
@@ -1040,17 +889,17 @@ var Ie = class {
 		let [r, ...i] = n;
 		if (r === "help") return this.help(i[0]);
 		if (r === "clear") return this.clear();
-		let a = Object.hasOwn(this.commands, r) ? this.commands[r] : void 0;
-		if (!a) {
+		let a = U(this.commands), o = Object.hasOwn(a, r) ? a[r] : void 0;
+		if (!o) {
 			this.push("error", `Unknown command "${r}". Type help for the list.`);
 			return;
 		}
-		let o = new AbortController();
-		this.job = o, this.set({ busy: !0 });
+		let s = new AbortController();
+		this.job = s, this.set({ busy: !0 });
 		try {
-			await a.run(this.context(o.signal), i);
+			await o.run(this.context(s.signal), i);
 		} catch (e) {
-			o.signal.aborted ? this.push("info", "Stopped.") : this.write("error", e instanceof Error ? e.message : String(e));
+			s.signal.aborted ? this.push("info", "Stopped.") : this.write("error", e instanceof Error ? e.message : String(e));
 		} finally {
 			this.job = null, this.set({
 				busy: !1,
@@ -1074,7 +923,9 @@ var Ie = class {
 				let t = this.push("info", e);
 				return {
 					update: (e) => this.replace(t, e),
-					done: (e) => this.replace(t, e)
+					done: (e) => {
+						e !== void 0 && this.replace(t, e);
+					}
 				};
 			},
 			askSecret: (e) => new Promise((t) => {
@@ -1086,21 +937,22 @@ var Ie = class {
 		};
 	}
 	help(e) {
+		let t = U(this.commands);
 		if (e) {
-			let t = Object.hasOwn(this.commands, e) ? this.commands[e] : void 0;
-			if (!t) {
+			let n = Object.hasOwn(t, e) ? t[e] : void 0;
+			if (!n) {
 				this.push("error", `Unknown command "${e}".`);
 				return;
 			}
-			this.push("output", t.usage), t.summary && this.push("output", t.summary);
+			this.push("output", n.usage), n.summary && this.push("output", n.summary);
 			return;
 		}
-		let t = [
-			...Object.entries(this.commands).map(([e, t]) => [e, t.summary]),
+		let n = [
+			...Object.entries(t).map(([e, t]) => [e, t.summary]),
 			["help", "list the commands, or help <command>"],
 			["clear", "clear the console (Ctrl+L)"]
-		], n = Math.max(...t.map(([e]) => e.length));
-		for (let [e, r] of t) this.push("output", `  ${e.padEnd(n)}  ${r}`);
+		], r = Math.max(...n.map(([e]) => e.length));
+		for (let [e, t] of n) this.push("output", `  ${e.padEnd(r)}  ${t}`);
 	}
 	remember(e) {
 		let t = this.snapshot.history, n = t[t.length - 1] === e ? t : [...t, e].slice(-200);
@@ -1110,7 +962,181 @@ var Ie = class {
 		let n = this.snapshot.history;
 		return this.cursor === n.length && (this.draft = t), this.cursor = Math.max(0, Math.min(n.length, this.cursor + e)), this.cursor === n.length ? this.draft : n[this.cursor];
 	}
-}, Le = class {
+}, we = {
+	fx: {
+		list: "your effects",
+		new: "write a new effect",
+		edit: "change an effect",
+		rm: "delete an effect",
+		apply: "turn a GLSL effect on for the open photo",
+		off: "turn a GLSL effect off for the open photo"
+	},
+	api: {
+		list: "your endpoints",
+		new: "set up an endpoint",
+		edit: "change an endpoint",
+		rm: "delete an endpoint and its key",
+		key: "enter an endpoint's key",
+		send: "send the photos"
+	}
+}, Te = [{
+	label: "help",
+	insert: "help ",
+	detail: "list the commands, or help <command>"
+}, {
+	label: "clear",
+	insert: "clear ",
+	detail: "clear the console (Ctrl+L)"
+}], Ee = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g;
+function De(e, t, n) {
+	let r = t;
+	for (; r > 0 && !/\s/.test(e[r - 1]);) r--;
+	let i = t;
+	for (; i < e.length && !/\s/.test(e[i]);) i++;
+	let a = e.slice(r, t), o = e.slice(0, r).trim(), s = o ? o.split(/\s+/) : [], c = e.slice(i).trim(), l = ke(a, Ae(s, [...s, ...c ? c.split(/\s+/) : []], a, n)), u = l.length === 1 && l[0].insert.trim() === a ? [] : l;
+	return {
+		from: r,
+		to: i,
+		items: u
+	};
+}
+function Oe(e, t, n) {
+	let r = e.slice(t.to), i = /^\s/.test(r) ? n.insert.trimEnd() : n.insert, a = t.from + i.length + (/^\s/.test(r) && i !== n.insert ? 1 : 0);
+	return {
+		text: e.slice(0, t.from) + i + r,
+		cursor: a
+	};
+}
+function ke(e, t) {
+	let n = e.toLowerCase();
+	if (!n) return t;
+	let r = t.filter((e) => e.label.toLowerCase().startsWith(n)), i = t.filter((e) => !e.label.toLowerCase().startsWith(n) && e.label.toLowerCase().includes(n));
+	return [...r, ...i];
+}
+function Ae(e, t, n, r) {
+	let [i, a] = e, o = e.length;
+	if (o === 0) return n ? [...Object.entries(U(r.commands)).map(([e, t]) => ({
+		label: e,
+		insert: `${e} `,
+		detail: t.summary
+	})), ...Te] : [];
+	if (i === "help") return o === 1 ? Object.entries(U(r.commands)).map(([e, t]) => ({
+		label: e,
+		insert: `${e} `,
+		detail: t.summary
+	})) : [];
+	if (i === "fx") return je(o, a, t, r);
+	if (i === "run") {
+		if (o === 1) return W(r.effects().filter((e) => !k[e.kind].live && Ne(e.kind, r)));
+		let i = r.effects().find((t) => t.slug === e[1]), a = i && i.kind !== "gmic" ? c(i.source, i.kind) : null;
+		return a?.ok ? Re(a.params, t, n) : [];
+	}
+	if (i === "api") return Me(o, a, e, t, r);
+	if (i === "get") return o === 1 ? Fe(r.developKeys()) : [];
+	if (i === "set") return o % 2 == 1 ? Fe(r.developKeys()) : r.developKeys().find((t) => t.key === e[o - 1])?.kind === "boolean" ? [Ie("true"), Ie("false")] : [];
+	let s = U(r.commands)[i];
+	return o === 1 && s?.subcommands ? s.subcommands.map((e) => ({
+		label: e,
+		insert: `${e} `
+	})) : [];
+}
+function je(e, t, n, r) {
+	if (e === 1) return Pe("fx", r);
+	let i = r.effects();
+	return e === 2 && (t === "edit" || t === "rm") ? W(i) : e === 2 && (t === "apply" || t === "off") ? W(i.filter((e) => e.kind === "glsl")) : e >= 3 && t === "new" ? [
+		"glsl",
+		"js",
+		"gmic"
+	].filter((e) => Ne(e, r) && !n.includes(`--${e}`)).map((e) => ({
+		label: `--${e}`,
+		insert: `--${e} `,
+		detail: k[e].label
+	})) : [];
+}
+function Me(e, t, n, r, i) {
+	if (e === 1) return Pe("api", i);
+	let a = i.endpoints();
+	if (e === 2 && t && [
+		"edit",
+		"rm",
+		"key",
+		"send"
+	].includes(t)) return a.map((e) => ({
+		label: e.slug,
+		insert: `${e.slug} `,
+		detail: e.url
+	}));
+	if (e >= 3 && t === "send") {
+		let e = a.find((e) => e.slug === n[2]);
+		if (!e) return [];
+		let t = [];
+		for (let n of [
+			e.url,
+			...Object.values(e.fields),
+			...Object.values(e.headers)
+		]) for (let e of n.matchAll(Ee)) e[1] !== "filename" && !t.includes(e[1]) && t.push(e[1]);
+		return t.filter((e) => !Le(r, e)).map((e) => ({
+			label: `${e}=`,
+			insert: `${e}=`,
+			detail: "placeholder"
+		}));
+	}
+	return [];
+}
+function Ne(e, t) {
+	return e === "gmic" ? Object.hasOwn(U(t.commands), "gmic") : !k[e].unavailable;
+}
+function Pe(e, t) {
+	return (U(t.commands)[e]?.subcommands ?? []).map((t) => ({
+		label: t,
+		insert: `${t} `,
+		detail: we[e]?.[t]
+	}));
+}
+function W(e) {
+	return e.map((e) => ({
+		label: e.slug,
+		insert: `${e.slug} `,
+		detail: k[e.kind].label
+	}));
+}
+function Fe(e) {
+	return e.map((e) => ({
+		label: e.key,
+		insert: `${e.key} `,
+		detail: e.label === e.key ? void 0 : e.label
+	}));
+}
+function Ie(e) {
+	return {
+		label: e,
+		insert: `${e} `
+	};
+}
+function Le(e, t) {
+	return e.some((e) => e.startsWith(`${t}=`));
+}
+function Re(e, t, n) {
+	let r = n.indexOf("=");
+	if (r > 0) {
+		let t = e.find((e) => e.key === n.slice(0, r));
+		return t?.type === "bool" ? ["true", "false"].map((e) => ({
+			label: `${t.key}=${e}`,
+			insert: `${t.key}=${e} `
+		})) : [];
+	}
+	return e.filter((e) => !Le(t, e.key)).map((e) => ({
+		label: `${e.key}=`,
+		insert: `${e.key}=`,
+		detail: ze(e)
+	}));
+}
+function ze(e) {
+	if (e.type === "bool") return `bool, default ${e.default}`;
+	let t = e.min !== void 0 && e.max !== void 0 ? ` ${e.min} to ${e.max}` : "";
+	return `${e.type}${t}, default ${e.default}`;
+}
+var Be = class {
 	host;
 	registered = /* @__PURE__ */ new Map();
 	constructor(e) {
@@ -1127,15 +1153,15 @@ var Ie = class {
 			let e = c(r.source, "glsl"), i = e.ok ? de(r.source) : e.errors;
 			!e.ok || i.length ? t.push(`${r.name}: ${i.map((e) => `line ${e.line}: ${e.message}`).join("; ")}`) : n.set(r.slug, ue(r, e));
 		}
-		for (let [e, t] of this.registered) n.has(e) ? t === Re(n.get(e)) && n.delete(e) : (this.host.unregister(P(e)), this.registered.delete(e));
-		for (let [e, t] of n) this.host.register(t), this.registered.set(e, Re(t));
+		for (let [e, t] of this.registered) n.has(e) ? t === Ve(n.get(e)) && n.delete(e) : (this.host.unregister(P(e)), this.registered.delete(e));
+		for (let [e, t] of n) this.host.register(t), this.registered.set(e, Ve(t));
 		return t;
 	}
 	has(e) {
 		return this.registered.has(e);
 	}
 };
-function Re(e) {
+function Ve(e) {
 	return JSON.stringify([
 		e.name,
 		e.phase,
@@ -1146,15 +1172,15 @@ function Re(e) {
 //#endregion
 //#region src/rt.ts
 var G, K;
-function ze(e) {
+function He(e) {
 	K = e, G = e.react;
 }
 //#endregion
 //#region src/EffectsPanel.tsx
-function Be(e, t) {
+function Ue(e, t) {
 	return function() {
 		let n = G.useSyncExternalStore(e.subscribe, e.get), r = K.develop.useParamScope(), i = n.filter((e) => e.kind === "glsl" && t(e.slug)), a = K.ui.tokens;
-		return i.length ? /* @__PURE__ */ G.createElement("div", { style: { padding: "4px 8px 8px" } }, i.map((e) => /* @__PURE__ */ G.createElement(Ve, {
+		return i.length ? /* @__PURE__ */ G.createElement("div", { style: { padding: "4px 8px 8px" } }, i.map((e) => /* @__PURE__ */ G.createElement(We, {
 			key: e.slug,
 			effect: e,
 			scope: r
@@ -1165,7 +1191,7 @@ function Be(e, t) {
 		} }, "No live effects yet. Open the Terminal (Ctrl+`) and type fx new <name>.");
 	};
 }
-function Ve({ effect: e, scope: t }) {
+function We({ effect: e, scope: t }) {
 	let { Slider: n } = K.components, { Section: r, NumberInput: i, Toggle: a, Field: o } = K.ui, s = c(e.source, "glsl"), l = P(e.slug), u = (e) => `${l}.${e}`, d = () => t.commit(`Terminal: ${e.name}`), f = s.ok ? s.params : [];
 	return /* @__PURE__ */ G.createElement(r, { title: e.name }, /* @__PURE__ */ G.createElement(n, {
 		label: "Amount",
@@ -1209,14 +1235,37 @@ function Ve({ effect: e, scope: t }) {
 	}));
 }
 //#endregion
+//#region src/extension-commands.ts
+async function Ge(e, t, n, r, i) {
+	await e.run(t, {
+		words: n,
+		photos: r,
+		signal: i.signal,
+		print: i.print,
+		info: i.info,
+		warn: i.error,
+		progress: i.progress
+	});
+}
+function Ke(e, t, n) {
+	let r = {};
+	for (let i of e.list()) n.includes(i.name) || Object.hasOwn(r, i.name) || (r[i.name] = {
+		summary: i.summary,
+		usage: i.usage.join("\n"),
+		subcommands: i.subcommands.map((e) => e.name),
+		run: (n, r) => Ge(e, i.name, r, t(), n)
+	});
+	return r;
+}
+//#endregion
 //#region src/library.ts
-var He = "effects", Ue = "endpoints", q = (e) => typeof e == "object" && !!e && !Array.isArray(e), J = (e) => typeof e == "string", We = (e) => q(e) ? Object.fromEntries(Object.entries(e).filter((e) => J(e[1]))) : {};
-function Y(e) {
-	let t = e.get(He, []);
+var q = "effects", qe = "endpoints", J = (e) => typeof e == "object" && !!e && !Array.isArray(e), Y = (e) => typeof e == "string", Je = (e) => J(e) ? Object.fromEntries(Object.entries(e).filter((e) => Y(e[1]))) : {};
+function X(e) {
+	let t = e.get(q, []);
 	if (!Array.isArray(t)) return [];
 	let n = /* @__PURE__ */ new Set(), r = [];
 	for (let e of t) {
-		if (!q(e) || !J(e.name) || !J(e.source) || !se(e.kind)) continue;
+		if (!J(e) || !Y(e.name) || !Y(e.source) || !se(e.kind)) continue;
 		let t = s(e.name);
 		t && !n.has(t) && (n.add(t), r.push({
 			name: e.name,
@@ -1227,72 +1276,72 @@ function Y(e) {
 	}
 	return r;
 }
-function Ge(e, t) {
-	e.set(He, t.map(({ name: e, kind: t, source: n }) => ({
+function Ye(e, t) {
+	e.set(q, t.map(({ name: e, kind: t, source: n }) => ({
 		name: e,
 		kind: t,
 		source: n
 	})));
 }
-var Ke = [
+var Xe = [
 	"multipart",
 	"body",
 	"json-base64",
 	"json-data-url"
-], qe = ["image", "json"], Je = ["image/jpeg", "image/png"];
-function Ye(e) {
-	if (!q(e) || !J(e.name) || !J(e.url)) return null;
+], Ze = ["image", "json"], Qe = ["image/jpeg", "image/png"];
+function $e(e) {
+	if (!J(e) || !Y(e.name) || !Y(e.url)) return null;
 	let t = f(e.name, e.url);
 	if (!t.slug) return null;
-	let n = e.auth === null ? null : q(e.auth) && J(e.auth.header) ? {
+	let n = e.auth === null ? null : J(e.auth) && Y(e.auth.header) ? {
 		header: e.auth.header,
-		prefix: J(e.auth.prefix) ? e.auth.prefix : ""
+		prefix: Y(e.auth.prefix) ? e.auth.prefix : ""
 	} : t.auth;
 	return {
 		...t,
 		method: e.method === "PUT" ? "PUT" : "POST",
-		send: Ke.includes(e.send) ? e.send : t.send,
-		field: J(e.field) ? e.field : t.field,
-		format: Je.includes(e.format) ? e.format : t.format,
+		send: Xe.includes(e.send) ? e.send : t.send,
+		field: Y(e.field) ? e.field : t.field,
+		format: Qe.includes(e.format) ? e.format : t.format,
 		longEdge: e.longEdge === null ? null : typeof e.longEdge == "number" && e.longEdge >= 16 ? Math.round(e.longEdge) : t.longEdge,
 		quality: typeof e.quality == "number" ? Math.min(1, Math.max(.1, e.quality)) : t.quality,
-		fields: We(e.fields),
-		headers: We(e.headers),
+		fields: Je(e.fields),
+		headers: Je(e.headers),
 		auth: n,
-		reply: qe.includes(e.reply) ? e.reply : t.reply,
-		path: J(e.path) ? e.path : ""
+		reply: Ze.includes(e.reply) ? e.reply : t.reply,
+		path: Y(e.path) ? e.path : ""
 	};
 }
-function Xe(e) {
-	let t = e.get(Ue, []);
+function et(e) {
+	let t = e.get(qe, []);
 	if (!Array.isArray(t)) return [];
 	let n = /* @__PURE__ */ new Set();
-	return t.map(Ye).filter((e) => !!e && !n.has(e.slug) && !!n.add(e.slug));
+	return t.map($e).filter((e) => !!e && !n.has(e.slug) && !!n.add(e.slug));
 }
-function Ze(e, t) {
-	e.set(Ue, t.map(({ slug: e, ...t }) => t));
+function tt(e, t) {
+	e.set(qe, t.map(({ slug: e, ...t }) => t));
 }
 //#endregion
 //#region src/effects/js-runner.ts
-var Qe = "\"use strict\";\n(() => {\n  const names = [\"fetch\", \"XMLHttpRequest\", \"WebSocket\", \"EventSource\", \"importScripts\", \"Worker\", \"SharedWorker\"];\n  for (const scope of [globalThis, self]) {\n    for (let o = scope; o; o = Object.getPrototypeOf(o)) {\n      for (const n of names) if (Object.prototype.hasOwnProperty.call(o, n)) try { delete o[n]; } catch {}\n    }\n    for (const n of names) try { Object.defineProperty(scope, n, { value: undefined, writable: false, configurable: false }); } catch {}\n  }\n})();\n(() => {\n  // Helpers are properties of the global object, not declarations, so the\n  // script may declare its own of the same name; one it declared as a\n  // function is in place before this runs, and is left alone.\n  const post = self.postMessage.bind(self);\n  const MAX_LOG = 500;\n  let logged = 0;\n  let lastProgress = -1;\n  let lastProgressAt = 0;\n  const helpers = {\n    clamp: (x, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, x)),\n    lerp: (a, b, t) => a + (b - a) * t,\n    luma: (r, g, b) => 0.2126 * r + 0.7152 * g + 0.0722 * b,\n    toLinear: (v) => (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)),\n    toSrgb: (v) => (v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055),\n    createImage: (width, height) => {\n      const data = new Float32Array(width * height * 4);\n      for (let i = 3; i < data.length; i += 4) data[i] = 1;\n      return { width, height, data };\n    },\n    progress: (fraction) => {\n      const value = Number(fraction);\n      const now = Date.now();\n      if (value >= 1 || Math.abs(value - lastProgress) >= 0.01 || now - lastProgressAt >= 250) {\n        lastProgress = value;\n        lastProgressAt = now;\n        post({ type: \"progress\", value });\n      }\n    },\n    log: (...values) => {\n      if (++logged <= MAX_LOG) post({ type: \"log\", text: values.map((v) => (typeof v === \"string\" ? v : JSON.stringify(v))).join(\" \") });\n    },\n  };\n  for (const [name, fn] of Object.entries(helpers)) if (!(name in globalThis)) globalThis[name] = fn;\n  self.onmessage = async (event) => {\n    const fail = (e) => post({ type: \"error\", message: e && e.name ? e.name + \": \" + e.message : String(e), stack: e && e.stack ? String(e.stack) : \"\" });\n    let fn;\n    try { fn = effect; } catch { fn = undefined; }\n    if (typeof fn !== \"function\") return post({ type: \"error\", message: \"The script has no function effect(image, params)\", stack: \"\" });\n    let out;\n    try { out = await fn(event.data.image, event.data.params); } catch (e) { return fail(e); }\n    if (logged > MAX_LOG) post({ type: \"log\", text: \"… \" + (logged - MAX_LOG) + \" more log lines not shown\" });\n    if (!out || typeof out !== \"object\" || !Number.isInteger(out.width) || !Number.isInteger(out.height) || out.width < 1 || out.height < 1)\n      return post({ type: \"error\", message: \"effect() must return an image: { width, height, data }\", stack: \"\" });\n    if (!out.data || out.data.length !== out.width * out.height * 4)\n      return post({ type: \"error\", message: \"The image's data must hold width × height × 4 values\", stack: \"\" });\n    const data = out.data instanceof Float32Array ? out.data : Float32Array.from(out.data);\n    post({ type: \"done\", image: { width: out.width, height: out.height, data } }, [data.buffer]);\n  };\n})();\n", $e = Qe.split("\n").length - 1;
-function et(e) {
-	return Qe + e;
+var nt = "\"use strict\";\n(() => {\n  const names = [\"fetch\", \"XMLHttpRequest\", \"WebSocket\", \"EventSource\", \"importScripts\", \"Worker\", \"SharedWorker\"];\n  for (const scope of [globalThis, self]) {\n    for (let o = scope; o; o = Object.getPrototypeOf(o)) {\n      for (const n of names) if (Object.prototype.hasOwnProperty.call(o, n)) try { delete o[n]; } catch {}\n    }\n    for (const n of names) try { Object.defineProperty(scope, n, { value: undefined, writable: false, configurable: false }); } catch {}\n  }\n})();\n(() => {\n  // Helpers are properties of the global object, not declarations, so the\n  // script may declare its own of the same name; one it declared as a\n  // function is in place before this runs, and is left alone.\n  const post = self.postMessage.bind(self);\n  const MAX_LOG = 500;\n  let logged = 0;\n  let lastProgress = -1;\n  let lastProgressAt = 0;\n  const helpers = {\n    clamp: (x, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, x)),\n    lerp: (a, b, t) => a + (b - a) * t,\n    luma: (r, g, b) => 0.2126 * r + 0.7152 * g + 0.0722 * b,\n    toLinear: (v) => (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)),\n    toSrgb: (v) => (v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055),\n    createImage: (width, height) => {\n      const data = new Float32Array(width * height * 4);\n      for (let i = 3; i < data.length; i += 4) data[i] = 1;\n      return { width, height, data };\n    },\n    progress: (fraction) => {\n      const value = Number(fraction);\n      const now = Date.now();\n      if (value >= 1 || Math.abs(value - lastProgress) >= 0.01 || now - lastProgressAt >= 250) {\n        lastProgress = value;\n        lastProgressAt = now;\n        post({ type: \"progress\", value });\n      }\n    },\n    log: (...values) => {\n      if (++logged <= MAX_LOG) post({ type: \"log\", text: values.map((v) => (typeof v === \"string\" ? v : JSON.stringify(v))).join(\" \") });\n    },\n  };\n  for (const [name, fn] of Object.entries(helpers)) if (!(name in globalThis)) globalThis[name] = fn;\n  self.onmessage = async (event) => {\n    const fail = (e) => post({ type: \"error\", message: e && e.name ? e.name + \": \" + e.message : String(e), stack: e && e.stack ? String(e.stack) : \"\" });\n    let fn;\n    try { fn = effect; } catch { fn = undefined; }\n    if (typeof fn !== \"function\") return post({ type: \"error\", message: \"The script has no function effect(image, params)\", stack: \"\" });\n    let out;\n    try { out = await fn(event.data.image, event.data.params); } catch (e) { return fail(e); }\n    if (logged > MAX_LOG) post({ type: \"log\", text: \"… \" + (logged - MAX_LOG) + \" more log lines not shown\" });\n    if (!out || typeof out !== \"object\" || !Number.isInteger(out.width) || !Number.isInteger(out.height) || out.width < 1 || out.height < 1)\n      return post({ type: \"error\", message: \"effect() must return an image: { width, height, data }\", stack: \"\" });\n    if (!out.data || out.data.length !== out.width * out.height * 4)\n      return post({ type: \"error\", message: \"The image's data must hold width × height × 4 values\", stack: \"\" });\n    const data = out.data instanceof Float32Array ? out.data : Float32Array.from(out.data);\n    post({ type: \"done\", image: { width: out.width, height: out.height, data } }, [data.buffer]);\n  };\n})();\n", rt = nt.split("\n").length - 1;
+function it(e) {
+	return nt + e;
 }
-function tt(e) {
+function at(e) {
 	let t = URL.createObjectURL(new Blob([e], { type: "text/javascript" })), n = new Worker(t);
 	return URL.revokeObjectURL(t), n;
 }
-function nt(e, t) {
+function ot(e, t) {
 	return new Promise((n, r) => {
-		if (t.signal?.aborted) return r(rt());
-		let i = (t.createWorker ?? tt)(et(e)), a = (e) => {
+		if (t.signal?.aborted) return r(st());
+		let i = (t.createWorker ?? at)(it(e)), a = (e) => {
 			clearTimeout(s), t.signal?.removeEventListener("abort", o), i.onmessage = null, i.onerror = null, i.terminate(), e();
-		}, o = () => a(() => r(rt())), s = setTimeout(() => a(() => r(/* @__PURE__ */ Error(`The script took longer than ${t.timeoutMs / 1e3} s`))), t.timeoutMs);
+		}, o = () => a(() => r(st())), s = setTimeout(() => a(() => r(/* @__PURE__ */ Error(`The script took longer than ${t.timeoutMs / 1e3} s`))), t.timeoutMs);
 		t.signal?.addEventListener("abort", o), i.onerror = (e) => {
-			e.preventDefault(), a(() => r(Error(at(e.lineno, e.message))));
+			e.preventDefault(), a(() => r(Error(lt(e.lineno, e.message))));
 		}, i.onmessage = ({ data: e }) => {
 			let i = e;
-			i.type === "progress" ? t.onProgress?.(i.value) : i.type === "log" ? t.onLog?.(i.text) : i.type === "error" ? a(() => r(Error(at(it(i.stack), i.message)))) : i.type === "done" && a(() => n(i.image));
+			i.type === "progress" ? t.onProgress?.(i.value) : i.type === "log" ? t.onLog?.(i.text) : i.type === "error" ? a(() => r(Error(lt(ct(i.stack), i.message)))) : i.type === "done" && a(() => n(i.image));
 		};
 		let { image: c } = t;
 		i.postMessage({
@@ -1301,23 +1350,23 @@ function nt(e, t) {
 		}, [c.data.buffer]);
 	});
 }
-function rt() {
+function st() {
 	return new DOMException("The script was stopped", "AbortError");
 }
-function it(e) {
+function ct(e) {
 	for (let t of e.matchAll(/blob:\S*?:(\d+):\d+/g)) {
 		let e = Number(t[1]);
-		if (e > $e) return e;
+		if (e > rt) return e;
 	}
 	return 0;
 }
-function at(e, t) {
-	let n = e - $e;
+function lt(e, t) {
+	let n = e - rt;
 	return n > 0 ? `line ${n}: ${t}` : t;
 }
 //#endregion
 //#region src/pixels.ts
-function ot(e, t, n) {
+function ut(e, t, n) {
 	let r = new Float32Array(e.length);
 	for (let t = 0; t < e.length; t++) r[t] = e[t] / 255;
 	return {
@@ -1326,7 +1375,7 @@ function ot(e, t, n) {
 		data: r
 	};
 }
-function st(e) {
+function dt(e) {
 	let t = new Uint8ClampedArray(e.data.length);
 	for (let n = 0; n < t.length; n++) {
 		let r = e.data[n];
@@ -1334,7 +1383,7 @@ function st(e) {
 	}
 	return t;
 }
-async function ct(e) {
+async function ft(e) {
 	let t = await createImageBitmap(e, {
 		colorSpaceConversion: "none",
 		premultiplyAlpha: "none"
@@ -1351,18 +1400,18 @@ async function ct(e) {
 		t.close();
 	}
 }
-async function lt(e) {
+async function pt(e) {
 	let t = new OffscreenCanvas(e.width, e.height), n = t.getContext("2d", { colorSpace: "srgb" });
 	if (!n) throw Error("No 2D canvas to write the image with");
-	return n.putImageData(new ImageData(st(e), e.width, e.height), 0, 0), t.convertToBlob({ type: "image/png" });
+	return n.putImageData(new ImageData(dt(e), e.width, e.height), 0, 0), t.convertToBlob({ type: "image/png" });
 }
-function ut(e, t, n, r) {
+function mt(e, t, n, r) {
 	return `${e.replace(/\.[^.]*$/, "") || e}-${t}${r > 1 ? `-${r}` : ""}.${n}`;
 }
-var dt = /already exists/i, ft = 99;
-async function pt(e, t, n, r, i, a) {
-	for (let o = 1; o <= ft; o++) {
-		let s = ut(n, i, a, o), [c] = await e([{
+var ht = /already exists/i, gt = 99;
+async function _t(e, t, n, r, i, a) {
+	for (let o = 1; o <= gt; o++) {
+		let s = mt(n, i, a, o), [c] = await e([{
 			name: s,
 			data: r
 		}], { folder: t.folder });
@@ -1375,28 +1424,28 @@ async function pt(e, t, n, r, i, a) {
 			name: s,
 			id: c.id
 		};
-		if (!dt.test(c.error)) return {
+		if (!ht.test(c.error)) return {
 			ok: !1,
 			error: c.error
 		};
 	}
 	return {
 		ok: !1,
-		error: `Every name up to ${ut(n, i, a, ft)} is in use`
+		error: `Every name up to ${mt(n, i, a, gt)} is in use`
 	};
 }
 //#endregion
 //#region src/settings.ts
-var mt = "scriptSize", ht = "timeLimit", gt = "history", X = 4096, _t = 16384;
-function vt(e) {
-	let t = e.get(mt, X);
-	return typeof t == "number" && Number.isFinite(t) && t >= 0 ? Math.min(_t, Math.round(t)) : X;
+var vt = "scriptSize", yt = "timeLimit", bt = "history", Z = 4096, xt = 16384;
+function St(e) {
+	let t = e.get(vt, Z);
+	return typeof t == "number" && Number.isFinite(t) && t >= 0 ? Math.min(xt, Math.round(t)) : Z;
 }
-function yt(e) {
-	let t = e.get(ht, 120);
+function Ct(e) {
+	let t = e.get(yt, 120);
 	return typeof t == "number" && Number.isFinite(t) ? Math.min(3600, Math.max(10, t)) : 120;
 }
-var bt = {
+var wt = {
 	title: "Terminal",
 	keywords: [
 		"console",
@@ -1404,16 +1453,16 @@ var bt = {
 		"shortcut"
 	],
 	fields: [{
-		key: mt,
+		key: vt,
 		label: "Script render size",
 		hint: "Long edge in pixels of the photo a JavaScript effect gets; 0 for the original size. A float image takes 16 bytes a pixel.",
 		type: "number",
-		default: X,
+		default: Z,
 		min: 0,
-		max: _t,
+		max: xt,
 		step: 256
 	}, {
-		key: ht,
+		key: yt,
 		label: "Script time limit",
 		hint: "Seconds a JavaScript effect may take on one photo before it is stopped.",
 		type: "number",
@@ -1425,12 +1474,19 @@ var bt = {
 };
 //#endregion
 //#region src/services.ts
-function xt(e, t, n, r) {
+function Tt(e, t, n, r) {
 	let i = /* @__PURE__ */ new Map(), a = (e) => `key.${e}`, o = () => e.stores.useCatalogStore.getState(), s = () => e.stores.useDevelopStore.getState(), c = () => {
 		let e = s().photoId;
 		return e && o().photos.find((t) => t.id === e) || null;
+	}, l = () => {
+		let t = c();
+		if (e.stores.useUIStore.getState().activeModule === "develop") return t ? [t] : [];
+		let { photos: n, selectedIds: r, activePhotoId: i } = o(), a = n.filter((e) => r.has(e.id));
+		if (a.length) return a;
+		let s = n.find((e) => e.id === i);
+		return s ? [s] : [];
 	};
-	async function l(t, n) {
+	async function u(t, n) {
 		let [r] = await e.export.renderPhotos([t], {
 			colorSpace: "srgb",
 			includeMetadata: !1,
@@ -1441,29 +1497,26 @@ function xt(e, t, n, r) {
 		if (!r?.blob) throw Error("Safelight couldn't render the photo");
 		return r.blob;
 	}
-	let u = () => Object.entries(s().params).filter(([, e]) => typeof e == "number" || typeof e == "boolean");
+	let d = () => Object.entries(s().params).filter(([, e]) => typeof e == "number" || typeof e == "boolean");
 	return {
-		effects: () => Y(e.settings),
+		effects: () => X(e.settings),
 		saveEffects: (t) => {
-			Ge(e.settings, t), r();
+			Ye(e.settings, t), r();
 		},
-		endpoints: () => Xe(e.settings),
-		saveEndpoints: (t) => Ze(e.settings, t),
+		endpoints: () => et(e.settings),
+		saveEndpoints: (t) => tt(e.settings, t),
 		isLive: (e) => t.has(e),
 		edit: n,
-		targets: () => {
-			let t = c();
-			if (e.stores.useUIStore.getState().activeModule === "develop") return t ? [t] : [];
-			let { photos: n, selectedIds: r, activePhotoId: i } = o(), a = n.filter((e) => r.has(e.id));
-			if (a.length) return a;
-			let s = n.find((e) => e.id === i);
-			return s ? [s] : [];
+		commands: {
+			has: (t) => e.commands.list().some((e) => e.name === t),
+			run: (t, n, r) => Ge(e.commands, t, n, l(), r)
 		},
+		targets: l,
 		openPhoto: c,
 		displayName: (t) => e.catalog.photoDisplayName(t),
 		develop: {
 			keys: () => [
-				...u().map(([e, t]) => ({
+				...d().map(([e, t]) => ({
 					key: e,
 					label: e,
 					kind: typeof t == "boolean" ? "boolean" : "number"
@@ -1496,17 +1549,17 @@ function xt(e, t, n, r) {
 			});
 		},
 		renderForScript: async (t) => {
-			let n = await ct(await l(t, {
+			let n = await ft(await u(t, {
 				format: "image/png",
-				longEdge: vt(e.settings) || null
+				longEdge: St(e.settings) || null
 			}));
-			return ot(n.data, n.width, n.height);
+			return ut(n.data, n.width, n.height);
 		},
-		runScript: (e, t) => nt(e, t),
-		timeLimitMs: () => yt(e.settings) * 1e3,
-		encodePng: lt,
+		runScript: (e, t) => ot(e, t),
+		timeLimitMs: () => Ct(e.settings) * 1e3,
+		encodePng: pt,
 		renderForSend: async (e, t) => {
-			let n = await l(e, {
+			let n = await u(e, {
 				format: t.format,
 				longEdge: t.longEdge,
 				quality: t.quality
@@ -1516,7 +1569,7 @@ function xt(e, t, n, r) {
 				type: t.format
 			};
 		},
-		importBeside: (t, n, r, i) => pt(e.library.importFiles, t, e.catalog.photoDisplayName(t), n, r, i),
+		importBeside: (t, n, r, i) => _t(e.library.importFiles, t, e.catalog.photoDisplayName(t), n, r, i),
 		network: {
 			hasAccess: (t) => e.network.hasAccess(t),
 			requestAccess: (t) => e.network.requestAccess(t),
@@ -1541,8 +1594,8 @@ function xt(e, t, n, r) {
 }
 //#endregion
 //#region src/console/SuggestionList.tsx
-var St = 20;
-function Ct(e) {
+var Et = 20;
+function Dt(e) {
 	let t = K.ui.tokens, n = G.useRef(null);
 	G.useEffect(() => {
 		n.current?.querySelector(`[data-index="${e.selected}"]`)?.scrollIntoView?.({ block: "nearest" });
@@ -1582,8 +1635,8 @@ function Ct(e) {
 			display: "flex",
 			gap: 12,
 			alignItems: "baseline",
-			height: St,
-			lineHeight: `${St}px`,
+			height: Et,
+			lineHeight: `${Et}px`,
 			padding: "0 6px",
 			borderRadius: 3,
 			cursor: "pointer",
@@ -1601,11 +1654,11 @@ function Ct(e) {
 }
 //#endregion
 //#region src/effects/code-suggest.ts
-var Z = (e) => (t) => ({
+var Q = (e) => (t) => ({
 	label: t,
 	insert: t,
 	detail: e
-}), wt = [
+}), Ot = [
 	{
 		label: "luma",
 		insert: "luma",
@@ -1626,7 +1679,7 @@ var Z = (e) => (t) => ({
 		insert: "linearToSrgbU",
 		detail: "vec3 linearToSrgbU(vec3 c), keeps values past 1 · Safelight"
 	}
-], Tt = "abs acos asin atan ceil clamp cos cross degrees distance dot exp exp2 floor fract inversesqrt length log log2 max min mix mod normalize pow radians reflect round sign sin smoothstep sqrt step tan".split(" ").map(Z("GLSL")), Et = "bool break const continue else false float for if int ivec2 ivec3 mat2 mat3 mat4 true vec2 vec3 vec4 while".split(" ").map(Z("GLSL")), Dt = [
+], kt = "abs acos asin atan ceil clamp cos cross degrees distance dot exp exp2 floor fract inversesqrt length log log2 max min mix mod normalize pow radians reflect round sign sin smoothstep sqrt step tan".split(" ").map(Q("GLSL")), At = "bool break const continue else false float for if int ivec2 ivec3 mat2 mat3 mat4 true vec2 vec3 vec4 while".split(" ").map(Q("GLSL")), jt = [
 	{
 		label: "effect",
 		insert: "effect",
@@ -1682,7 +1735,7 @@ var Z = (e) => (t) => ({
 		insert: "log",
 		detail: "log(...values): printed in the Terminal"
 	}
-], Ot = "async await break const continue else false Float32Array for function if let Math new return true while".split(" ").map(Z("JavaScript")), kt = "abs atan2 cbrt ceil cos exp floor hypot log log2 max min PI pow random round sign sin sqrt tan trunc".split(" ").map(Z("Math")), At = [
+], Mt = "async await break const continue else false Float32Array for function if let Math new return true while".split(" ").map(Q("JavaScript")), Nt = "abs atan2 cbrt ceil cos exp floor hypot log log2 max min PI pow random round sign sin sqrt tan trunc".split(" ").map(Q("Math")), Pt = [
 	{
 		label: "width",
 		insert: "width",
@@ -1698,7 +1751,7 @@ var Z = (e) => (t) => ({
 		insert: "data",
 		detail: "Float32Array, RGBA, rows from the top"
 	}
-], jt = {
+], Ft = {
 	glsl: [{
 		label: "@param",
 		insert: "@param ",
@@ -1713,14 +1766,14 @@ var Z = (e) => (t) => ({
 		insert: "@param ",
 		detail: "@param <name> <float|int|bool> [min max] <default> [label]"
 	}]
-}, Mt = [
+}, It = [
 	"float",
 	"int",
 	"bool"
 ].map((e) => ({
 	label: e,
 	insert: `${e} `
-})), Nt = [{
+})), Lt = [{
 	label: "scene",
 	insert: "scene",
 	detail: "linear light, before the display transform"
@@ -1728,12 +1781,12 @@ var Z = (e) => (t) => ({
 	label: "display",
 	insert: "display",
 	detail: "display-encoded (the default)"
-}], Q = /[A-Za-z0-9_$]/;
-function Pt(e, t, n) {
+}], Rt = /[A-Za-z0-9_$]/;
+function zt(e, t, n) {
 	let r = e.lastIndexOf("\n", t - 1) + 1, i = e.slice(r, t), a = t;
-	for (; a > r && (Q.test(e[a - 1]) || e[a - 1] === "@");) a--;
+	for (; a > r && (Rt.test(e[a - 1]) || e[a - 1] === "@");) a--;
 	let o = t;
-	for (; o < e.length && Q.test(e[o]);) o++;
+	for (; o < e.length && Rt.test(e[o]);) o++;
 	let s = e.slice(a, t), l = (e) => {
 		let t = s.toLowerCase(), n = e.filter((e) => e.label.toLowerCase().startsWith(t) && e.label !== s);
 		return {
@@ -1742,34 +1795,34 @@ function Pt(e, t, n) {
 			items: n
 		};
 	};
-	if (/^\s*\/\//.test(i)) return /^\s*\/\/\s*@\w*$/.test(i) ? l(jt[n]) : n === "glsl" && /^\s*\/\/\s*@phase\s+\w*$/.test(i) ? l(Nt) : /^\s*\/\/\s*@param\s+\w+\s+\w*$/.test(i) ? l(Mt) : l([]);
+	if (/^\s*\/\//.test(i)) return /^\s*\/\/\s*@\w*$/.test(i) ? l(Ft[n]) : n === "glsl" && /^\s*\/\/\s*@phase\s+\w*$/.test(i) ? l(Lt) : /^\s*\/\/\s*@param\s+\w+\s+\w*$/.test(i) ? l(It) : l([]);
 	if (/^[0-9]/.test(s)) return l([]);
 	let u = c(e, n), d = u.ok ? u.params : [];
 	if (e[a - 1] === ".") {
 		if (n !== "js") return l([]);
 		let t = /([A-Za-z_$][\w$]*)\.$/.exec(e.slice(r, a))?.[1];
-		return l(t === "params" ? d.map(It) : t === "image" ? At : t === "Math" ? kt : []);
+		return l(t === "params" ? d.map(Vt) : t === "image" ? Pt : t === "Math" ? Nt : []);
 	}
 	if (!s) return l([]);
-	let f = n === "glsl" ? /\b(?:float|int|bool|vec[234]|ivec[234]|mat[234])\s+([A-Za-z_]\w*)/g : /\b(?:const|let|var|function)\s+([A-Za-z_$][\w$]*)/g, p = [...new Set([...e.matchAll(f)].map((e) => e[1]))].map(Z("declared here")), m = [...d.map(It), ...p], h = n === "glsl" ? [
+	let f = n === "glsl" ? /\b(?:float|int|bool|vec[234]|ivec[234]|mat[234])\s+([A-Za-z_]\w*)/g : /\b(?:const|let|var|function)\s+([A-Za-z_$][\w$]*)/g, p = [...new Set([...e.matchAll(f)].map((e) => e[1]))].map(Q("declared here")), m = [...d.map(Vt), ...p], h = n === "glsl" ? [
 		{
 			label: "c",
 			insert: "c",
 			detail: "vec3, the colour"
 		},
-		...wt,
-		...Tt,
-		...Et
-	] : [...Dt, ...Ot], g = /* @__PURE__ */ new Set();
+		...Ot,
+		...kt,
+		...At
+	] : [...jt, ...Mt], g = /* @__PURE__ */ new Set();
 	return l([...m, ...h].filter((e) => !g.has(e.label) && !!g.add(e.label)));
 }
-function Ft(e, t, n) {
+function Bt(e, t, n) {
 	return {
 		text: e.slice(0, t.from) + n.insert + e.slice(t.to),
 		cursor: t.from + n.insert.length
 	};
 }
-function It(e) {
+function Vt(e) {
 	let t = e.type !== "bool" && e.min !== void 0 && e.max !== void 0 ? `, ${e.min} to ${e.max}` : "";
 	return {
 		label: e.key,
@@ -1779,7 +1832,7 @@ function It(e) {
 }
 //#endregion
 //#region src/EffectEditor.tsx
-function Lt(e, t) {
+function Ht(e, t) {
 	let n = c(e.source, e.kind);
 	if (!n.ok) return {
 		errors: n.errors,
@@ -1801,9 +1854,9 @@ function Lt(e, t) {
 		}]
 	};
 }
-var Rt = (e) => e.line ? `line ${e.line}: ${e.message}` : e.message;
-function zt(e) {
-	let { Button: t, TextArea: n, Row: r } = K.ui, i = K.ui.tokens, [a, o] = G.useState(e.record.source), [s, c] = G.useState(null), [l, u] = G.useState(0), [d, f] = G.useState(!1), [p, m] = G.useState(0), h = G.useRef(null), g = G.useRef(null), _ = k[e.record.kind], v = e.record.kind === "gmic" ? null : e.record.kind, y = G.useMemo(() => d && v ? Pt(a, l, v) : null, [
+var Ut = (e) => e.line ? `line ${e.line}: ${e.message}` : e.message;
+function Wt(e) {
+	let { Button: t, TextArea: n, Row: r } = K.ui, i = K.ui.tokens, [a, o] = G.useState(e.record.source), [s, c] = G.useState(null), [l, u] = G.useState(0), [d, f] = G.useState(!1), [p, m] = G.useState(0), h = G.useRef(null), g = G.useRef(null), _ = k[e.record.kind], v = e.record.kind === "gmic" ? null : e.record.kind, y = G.useMemo(() => d && v ? zt(a, l, v) : null, [
 		d,
 		v,
 		a,
@@ -1814,7 +1867,7 @@ function zt(e) {
 	});
 	let S = (e) => {
 		if (!y || !b[e]) return;
-		let t = Ft(a, y, b[e]);
+		let t = Bt(a, y, b[e]);
 		g.current = t.cursor, o(t.text), u(t.cursor), m(0), f(t.text.slice(0, t.cursor).endsWith(" ") && /@\w+ $/.test(t.text.slice(0, t.cursor)));
 	}, C = (e) => {
 		h.current = e.currentTarget;
@@ -1830,7 +1883,7 @@ function zt(e) {
 		let t = {
 			...e.record,
 			source: a
-		}, n = Lt(t, e.compile);
+		}, n = Ht(t, e.compile);
 		c(n), n.errors.length || e.onSave(t);
 	};
 	return /* @__PURE__ */ G.createElement("div", { style: {
@@ -1885,7 +1938,7 @@ function zt(e) {
 			fontFamily: i.fontCode,
 			fontSize: 12
 		}
-	}), x && /* @__PURE__ */ G.createElement(Ct, {
+	}), x && /* @__PURE__ */ G.createElement(Dt, {
 		id: "terminal-code-suggestions",
 		items: b,
 		selected: p,
@@ -1902,14 +1955,14 @@ function zt(e) {
 	}, s.errors.map((e, t) => /* @__PURE__ */ G.createElement("div", {
 		key: `e${t}`,
 		style: { color: i.labelRed }
-	}, Rt(e))), s.warnings.map((e, t) => /* @__PURE__ */ G.createElement("div", {
+	}, Ut(e))), s.warnings.map((e, t) => /* @__PURE__ */ G.createElement("div", {
 		key: `w${t}`,
 		style: { color: i.textMuted }
-	}, Rt(e)))));
+	}, Ut(e)))));
 }
 //#endregion
 //#region src/EndpointEditor.tsx
-function Bt(e) {
+function Gt(e) {
 	let t = {}, n = e.split(/\r?\n/);
 	for (let e = 0; e < n.length; e++) {
 		let r = n[e];
@@ -1926,10 +1979,10 @@ function Bt(e) {
 		pairs: t
 	};
 }
-function Vt(e) {
+function Kt(e) {
 	return Object.entries(e).map(([e, t]) => `${e}: ${t}`).join("\n");
 }
-var Ht = [
+var qt = [
 	{
 		value: "multipart",
 		label: "Form upload (multipart)"
@@ -1946,25 +1999,25 @@ var Ht = [
 		value: "json-data-url",
 		label: "JSON, image as a data URL"
 	}
-], Ut = [{
+], Jt = [{
 	value: "image",
 	label: "An image"
 }, {
 	value: "json",
 	label: "JSON with the image in it"
-}], Wt = [{
+}], Yt = [{
 	value: "image/jpeg",
 	label: "JPEG"
 }, {
 	value: "image/png",
 	label: "PNG"
 }];
-function Gt(e) {
-	let { Button: t, TextInput: n, NumberInput: r, TextArea: i, Select: a, Field: o, Toggle: s, Row: c, Stack: l } = K.ui, u = K.ui.tokens, [d, f] = G.useState(e.record), [p, h] = G.useState(Vt(e.record.fields)), [g, _] = G.useState(Vt(e.record.headers)), [v, y] = G.useState([]), [b, x] = G.useState(!1), S = (e) => f((t) => ({
+function Xt(e) {
+	let { Button: t, TextInput: n, NumberInput: r, TextArea: i, Select: a, Field: o, Toggle: s, Row: c, Stack: l } = K.ui, u = K.ui.tokens, [d, f] = G.useState(e.record), [p, h] = G.useState(Kt(e.record.fields)), [g, _] = G.useState(Kt(e.record.headers)), [v, y] = G.useState([]), [b, x] = G.useState(!1), S = (e) => f((t) => ({
 		...t,
 		...e
 	})), C = async () => {
-		let t = Bt(p), n = Bt(g), r = {
+		let t = Gt(p), n = Gt(g), r = {
 			...d,
 			url: d.url.trim(),
 			fields: t.ok ? t.pairs : {},
@@ -2030,7 +2083,7 @@ function Gt(e) {
 		ariaLabel: "Send the photo as",
 		value: d.send,
 		onChange: (e) => S({ send: e }),
-		options: Ht
+		options: qt
 	})), d.send !== "body" && /* @__PURE__ */ G.createElement(o, {
 		label: d.send === "multipart" ? "Image field" : "Image key",
 		hint: d.send === "multipart" ? void 0 : "Dots nest: input.image"
@@ -2044,7 +2097,7 @@ function Gt(e) {
 		ariaLabel: "Format",
 		value: d.format,
 		onChange: (e) => S({ format: e }),
-		options: Wt
+		options: Yt
 	})), /* @__PURE__ */ G.createElement(o, {
 		label: "Long edge (px)",
 		hint: "0 for the original size"
@@ -2112,7 +2165,7 @@ function Gt(e) {
 		ariaLabel: "The answer is",
 		value: d.reply,
 		onChange: (e) => S({ reply: e }),
-		options: Ut
+		options: Jt
 	})), d.reply === "json" && /* @__PURE__ */ G.createElement(o, {
 		label: "Image in the JSON",
 		hint: "Dot path to base64, a data URL or an image address: output.0.url"
@@ -2132,10 +2185,10 @@ function Gt(e) {
 }
 //#endregion
 //#region src/TerminalPanel.tsx
-function Kt(e) {
+function Zt(e) {
 	return function() {
 		let t = G.useSyncExternalStore(e.editing.subscribe, e.editing.get), n = () => e.editing.set(null);
-		return t?.kind === "effect" ? /* @__PURE__ */ G.createElement(zt, {
+		return t?.kind === "effect" ? /* @__PURE__ */ G.createElement(Wt, {
 			key: t.record.slug,
 			record: t.record,
 			isNew: t.isNew,
@@ -2144,7 +2197,7 @@ function Kt(e) {
 				e.saveEffect(r, t.isNew), n();
 			},
 			onClose: n
-		}) : t?.kind === "endpoint" ? /* @__PURE__ */ G.createElement(Gt, {
+		}) : t?.kind === "endpoint" ? /* @__PURE__ */ G.createElement(Xt, {
 			key: t.record.slug,
 			record: t.record,
 			isNew: t.isNew,
@@ -2152,10 +2205,10 @@ function Kt(e) {
 				await e.saveEndpoint(r, t.isNew), n();
 			},
 			onClose: n
-		}) : /* @__PURE__ */ G.createElement(qt, { deps: e });
+		}) : /* @__PURE__ */ G.createElement(Qt, { deps: e });
 	};
 }
-function qt({ deps: e }) {
+function Qt({ deps: e }) {
 	let { terminal: t } = e, n = G.useSyncExternalStore(t.subscribe, t.getSnapshot), r = G.useSyncExternalStore(e.focus.subscribe, e.focus.get), [i, a] = G.useState(""), [o, s] = G.useState(0), [c, l] = G.useState(!1), [u, d] = G.useState(0), f = G.useRef(null), p = G.useRef(null), m = G.useRef(null), h = K.ui.tokens, g = G.useMemo(() => c && !n.prompt ? e.suggest(i, o) : null, [
 		c,
 		n.prompt,
@@ -2174,7 +2227,7 @@ function qt({ deps: e }) {
 		a(e), s(t), d(0), l(n);
 	}, b = (e) => {
 		if (!g || !_[e]) return;
-		let t = Te(i, g, _[e]);
+		let t = Oe(i, g, _[e]);
 		m.current = t.cursor, y(t.text, t.cursor, !0);
 	}, x = {
 		input: h.textSecondary,
@@ -2194,7 +2247,7 @@ function qt({ deps: e }) {
 			else {
 				let t = r.currentTarget.selectionStart ?? i.length, n = e.suggest(i, t);
 				if (n.items.length === 1) {
-					let e = Te(i, n, n.items[0]);
+					let e = Oe(i, n, n.items[0]);
 					m.current = e.cursor, y(e.text, e.cursor, !0);
 				} else s(t), d(0), l(!0);
 			}
@@ -2252,7 +2305,7 @@ function qt({ deps: e }) {
 		gap: 6,
 		padding: "3px 8px",
 		borderTop: `1px solid ${h.borderSubtle}`
-	} }, v && /* @__PURE__ */ G.createElement(Ct, {
+	} }, v && /* @__PURE__ */ G.createElement(Dt, {
 		id: C,
 		items: _,
 		selected: u,
@@ -2289,49 +2342,56 @@ function qt({ deps: e }) {
 }
 //#endregion
 //#region src/index.tsx
-var Jt = {
+var $t = {
 	direction: "bottom",
 	height: 240
 }, $ = null;
-function Yt(e, t = Zt()) {
-	ze(e);
-	let n = new U(null), r = new U(0), i = new U([]), a = new Le({
+function en(e, t = nn()) {
+	He(e);
+	let n = new H(null), r = new H(0), i = new H([]), a = new Be({
 		register: (t) => e.registerProcessingStage(t),
 		unregister: (t) => e.unregisterProcessingStage(t)
 	}), o = [], s = (e) => void o.push(e), c = /* @__PURE__ */ new Set(), l = () => {
-		let t = Y(e.settings), n = a.sync(t);
+		let t = X(e.settings), n = a.sync(t);
 		for (let e of n) c.has(e) || s(e);
 		c = new Set(n), i.set(t);
-	}, u = xt(e, a, (e) => n.set(e), l), d = e.settings.get(gt, []), f = _e(u), p = new Ie(f, {
+	}, u = Tt(e, a, (e) => n.set(e), l), d = e.settings.get(bt, []), f = ye(u), p = [
+		...Object.keys(f),
+		"help",
+		"clear"
+	], m = () => ({
+		...Ke(e.commands, u.targets, p),
+		...f
+	}), h = new Ce(m, {
 		history: Array.isArray(d) ? d.filter((e) => typeof e == "string") : [],
-		saveHistory: (t) => e.settings.set(gt, t)
+		saveHistory: (t) => e.settings.set(bt, t)
 	});
-	s = (e) => p.write("error", e), l();
+	s = (e) => h.write("error", e), l();
 	for (let e of o) s(e);
 	return $?.(), $ = e.settings.onChange((e) => {
 		e === "effects" && l();
 	}), e.registerPanel({
 		id: j,
 		title: "Terminal",
-		component: Kt({
-			terminal: p,
+		component: Zt({
+			terminal: h,
 			editing: n,
 			focus: r,
 			compile: t,
 			saveEffect: (t, n) => {
-				let r = Y(e.settings);
-				Ge(e.settings, n ? [...r, t] : r.map((e) => e.slug === t.slug ? t : e)), l();
+				let r = X(e.settings);
+				Ye(e.settings, n ? [...r, t] : r.map((e) => e.slug === t.slug ? t : e)), l();
 				let i = n ? t.kind === "glsl" ? ` Turn it on with: fx apply ${t.slug}` : ` Run it with: run ${t.slug}` : "";
-				p.write("info", `Saved ${t.name}.${i}`);
+				h.write("info", `Saved ${t.name}.${i}`);
 			},
 			saveEndpoint: async (t, n) => {
 				let r = new URL(t.url).origin;
 				if (!r.includes("{{") && !await e.network.requestAccess(t.url)) throw Error(`Safelight isn't allowed to reach ${r}; the endpoint wasn't saved.`);
-				let i = Xe(e.settings);
-				Ze(e.settings, n ? [...i, t] : i.map((e) => e.slug === t.slug ? t : e)), p.write("info", `Saved ${t.name}.${t.auth ? ` Set its key with: api key ${t.slug}` : ""}`);
+				let i = et(e.settings);
+				tt(e.settings, n ? [...i, t] : i.map((e) => e.slug === t.slug ? t : e)), h.write("info", `Saved ${t.name}.${t.auth ? ` Set its key with: api key ${t.slug}` : ""}`);
 			},
-			suggest: (e, t) => we(e, t, {
-				commands: f,
+			suggest: (e, t) => De(e, t, {
+				commands: m,
 				effects: u.effects,
 				endpoints: u.endpoints,
 				developKeys: u.develop.keys
@@ -2342,27 +2402,27 @@ function Yt(e, t = Zt()) {
 	}), e.registerPanel({
 		id: M,
 		title: "Script Effects",
-		component: Be(i, (e) => a.has(e))
+		component: Ue(i, (e) => a.has(e))
 	}), e.registerKeybinding({
 		id: ce,
 		label: "Toggle Terminal",
 		category: "General",
 		defaultCombo: le,
 		handler: () => {
-			e.dock.togglePanel(j, Jt), e.dock.isPanelOpen("terminal.panel") && r.set(r.get() + 1);
+			e.dock.togglePanel(j, $t), e.dock.isPanelOpen("terminal.panel") && r.set(r.get() + 1);
 		}
-	}), e.registerSettings(bt), {
-		terminal: p,
+	}), e.registerSettings(wt), {
+		terminal: h,
 		editing: n,
 		effects: i,
 		live: a,
 		focus: r
 	};
 }
-function Xt() {
+function tn() {
 	$?.(), $ = null;
 }
-function Zt() {
+function nn() {
 	let e;
 	return () => {
 		if (e === void 0) try {
@@ -2374,6 +2434,6 @@ function Zt() {
 	};
 }
 //#endregion
-export { M as EFFECTS_PANEL_ID, j as PANEL_ID, Jt as TERMINAL_PLACEMENT, ce as TOGGLE_ACTION, Yt as activate, Xt as deactivate };
+export { M as EFFECTS_PANEL_ID, j as PANEL_ID, $t as TERMINAL_PLACEMENT, ce as TOGGLE_ACTION, en as activate, tn as deactivate };
 
 //# sourceMappingURL=index.js.map

@@ -3,7 +3,7 @@
 
 import type { CommandContext, CommandTable } from "./console/terminal";
 import { buildRequest, defaultEndpoint, extensionOf, imageReply, readReply, type Endpoint, type SendImage } from "./endpoints/endpoint";
-import { ENGINES } from "./effects/engines";
+import { ENGINES, type EffectKind } from "./effects/engines";
 import { AMOUNT, fxStageId } from "./effects/glsl";
 import { coerceParams, parseHeader, slugOf } from "./effects/header";
 import type { FloatImage, RunOptions } from "./effects/js-runner";
@@ -27,6 +27,11 @@ export interface Services {
   /** Whether the GLSL effect's stage is registered. */
   isLive(slug: string): boolean;
   edit(target: EditTarget): void;
+  /** Other extensions' commands: G'MIC effects run through `gmic`. */
+  commands: {
+    has(name: string): boolean;
+    run(name: string, words: string[], ctx: CommandContext): Promise<void>;
+  };
 
   /** The photos a command works on, and the photo open in Develop. */
   targets(): CatalogPhoto[];
@@ -63,6 +68,11 @@ export interface Services {
 }
 
 const SEND_TIMEOUT_MS = 5 * 60 * 1000;
+
+/** Whether effects of `kind` can be made and run here. */
+function engineReady(services: Services, kind: EffectKind): boolean {
+  return kind === "gmic" ? services.commands.has("gmic") : !ENGINES[kind].unavailable;
+}
 
 function usage(text: string): never {
   throw new Error(`Usage: ${text}`);
@@ -185,7 +195,7 @@ export function createCommands(services: Services): CommandTable {
             if (services.effects().some((e) => e.slug === slug)) throw new Error(`There is already an effect named "${name}". Use fx edit.`);
             const kind = (["js", "gmic", "glsl"] as const).find((k) => flags.includes(k)) ?? "glsl";
             const engine = ENGINES[kind];
-            if (engine.unavailable) throw new Error(engine.unavailable);
+            if (!engineReady(services, kind)) throw new Error(engine.unavailable ?? "");
             services.edit({ kind: "effect", isNew: true, record: { name, slug, kind, source: engine.template } });
             return ctx.info(`Editing ${name} (${engine.label}). Save keeps it.`);
           }
@@ -230,7 +240,11 @@ export function createCommands(services: Services): CommandTable {
         const effect = findEffect(services, positional[0], "run <name> [param=value …]");
         const engine = ENGINES[effect.kind];
         if (engine.live) throw new Error(`${effect.name} is a live effect: use fx apply ${effect.slug}`);
-        if (engine.unavailable) throw new Error(engine.unavailable);
+        if (!engineReady(services, effect.kind)) throw new Error(engine.unavailable ?? "");
+        if (effect.kind === "gmic") {
+          const settings = Object.entries(named).map(([key, value]) => `${key}=${value}`);
+          return services.commands.run("gmic", ["script", "--source", effect.source, ...settings], ctx);
+        }
         const header = parseHeader(effect.source, effect.kind);
         if (!header.ok) throw new Error(`${effect.name}: ${header.errors.map((e) => `line ${e.line}: ${e.message}`).join("; ")}`);
         const params = coerceParams(header.params, named);

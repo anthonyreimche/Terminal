@@ -1,7 +1,7 @@
 {
   "name": "safelight-terminal",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Terminal for Safelight: scripted effects and external imaging APIs.",
   "type": "module",
   "scripts": {

@@ -4,6 +4,7 @@ import type { EditTarget, Services } from "./commands";
 import { EFFECTS_PANEL_ID } from "./ids";
 import type { LiveEffects } from "./effects/live";
 import { runJsEffect } from "./effects/js-runner";
+import { runExtensionCommand } from "./extension-commands";
 import { readEffects, readEndpoints, writeEffects, writeEndpoints } from "./library";
 import { bytesToFloats, decodeImage, encodePng, importBeside } from "./pixels";
 import type { CatalogPhoto, ExportSettings, SafelightAPI } from "./safelight";
@@ -18,6 +19,16 @@ export function createServices(api: SafelightAPI, live: LiveEffects, edit: (targ
   const openPhoto = (): CatalogPhoto | null => {
     const id = developStore().photoId;
     return (id && catalog().photos.find((p) => p.id === id)) || null;
+  };
+
+  const targets = (): CatalogPhoto[] => {
+    const open = openPhoto();
+    if (api.stores.useUIStore.getState().activeModule === "develop") return open ? [open] : [];
+    const { photos, selectedIds, activePhotoId } = catalog();
+    const selected = photos.filter((p) => selectedIds.has(p.id));
+    if (selected.length) return selected;
+    const active = photos.find((p) => p.id === activePhotoId);
+    return active ? [active] : [];
   };
 
   async function render(photo: CatalogPhoto, settings: Partial<ExportSettings>): Promise<Blob> {
@@ -43,16 +54,12 @@ export function createServices(api: SafelightAPI, live: LiveEffects, edit: (targ
     saveEndpoints: (endpoints) => writeEndpoints(api.settings, endpoints),
     isLive: (slug) => live.has(slug),
     edit,
-
-    targets: () => {
-      const open = openPhoto();
-      if (api.stores.useUIStore.getState().activeModule === "develop") return open ? [open] : [];
-      const { photos, selectedIds, activePhotoId } = catalog();
-      const selected = photos.filter((p) => selectedIds.has(p.id));
-      if (selected.length) return selected;
-      const active = photos.find((p) => p.id === activePhotoId);
-      return active ? [active] : [];
+    commands: {
+      has: (name) => api.commands.list().some((c) => c.name === name),
+      run: (name, words, ctx) => runExtensionCommand(api.commands, name, words, targets(), ctx),
     },
+
+    targets,
     openPhoto,
     displayName: (photo) => api.catalog.photoDisplayName(photo),
 

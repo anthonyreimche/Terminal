@@ -1,7 +1,7 @@
 // The languages an effect can be written in. GLSL effects join the develop
 // pipeline as live stages; the others run on a photo's pixels and write a new
-// photo. A G'MIC engine (a WebAssembly build, or a bridge to the gmic program)
-// slots in here beside JS: it runs through the same `run` path.
+// photo. G'MIC effects run through the gmic command another extension (G'MIC)
+// adds, so they work only while it is installed and on.
 
 export type EffectKind = "glsl" | "js" | "gmic";
 
@@ -40,6 +40,15 @@ function effect(image, params) {
 }
 `;
 
+const GMIC_TEMPLATE = `# Runs once on each photo and imports the result as a new photo.
+# Each line is G'MIC words (gmic.eu/reference), run on the photo in turn.
+# #@gui lines give it settings, read here as $1, $2 and on.
+#@gui : Radius = float(2,0,20)
+#@gui : Sharpen = float(40,0,200)
+blur $1
+sharpen $2
+`;
+
 export const ENGINES: Readonly<Record<EffectKind, Engine>> = {
   glsl: { id: "glsl", label: "GLSL", live: true, unavailable: null, template: GLSL_TEMPLATE },
   js: { id: "js", label: "JavaScript", live: false, unavailable: null, template: JS_TEMPLATE },
@@ -47,8 +56,8 @@ export const ENGINES: Readonly<Record<EffectKind, Engine>> = {
     id: "gmic",
     label: "G'MIC",
     live: false,
-    unavailable: "G'MIC isn't available yet: no G'MIC engine is installed.",
-    template: "",
+    unavailable: "G'MIC effects need the G'MIC extension: install it, turn it on and set it up in its panel.",
+    template: GMIC_TEMPLATE,
   },
 };
 

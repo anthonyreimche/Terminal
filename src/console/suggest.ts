@@ -4,10 +4,10 @@
 
 import type { DevelopKey } from "../commands";
 import type { Endpoint } from "../endpoints/endpoint";
-import { ENGINES } from "../effects/engines";
+import { ENGINES, type EffectKind } from "../effects/engines";
 import { parseHeader, type ParamDecl } from "../effects/header";
 import type { EffectRecord } from "../library";
-import type { CommandTable } from "./terminal";
+import { tableOf, type CommandSource } from "./terminal";
 
 export interface Suggestion {
   label: string;
@@ -24,7 +24,7 @@ export interface Suggestions {
 }
 
 export interface LineSource {
-  commands: CommandTable;
+  commands: CommandSource;
   effects(): EffectRecord[];
   endpoints(): Endpoint[];
   developKeys(): DevelopKey[];
@@ -92,14 +92,14 @@ function candidates(words: string[], given: string[], word: string, source: Line
   const at = words.length;
   if (at === 0) {
     if (!word) return [];
-    return [...Object.entries(source.commands).map(([name, c]) => ({ label: name, insert: `${name} `, detail: c.summary })), ...BUILTINS];
+    return [...Object.entries(tableOf(source.commands)).map(([name, c]) => ({ label: name, insert: `${name} `, detail: c.summary })), ...BUILTINS];
   }
-  if (command === "help") return at === 1 ? Object.entries(source.commands).map(([name, c]) => ({ label: name, insert: `${name} `, detail: c.summary })) : [];
+  if (command === "help") return at === 1 ? Object.entries(tableOf(source.commands)).map(([name, c]) => ({ label: name, insert: `${name} `, detail: c.summary })) : [];
   if (command === "fx") return fxCandidates(at, sub, given, source);
   if (command === "run") {
-    if (at === 1) return effectItems(source.effects().filter((e) => !ENGINES[e.kind].live && !ENGINES[e.kind].unavailable));
+    if (at === 1) return effectItems(source.effects().filter((e) => !ENGINES[e.kind].live && engineReady(e.kind, source)));
     const effect = source.effects().find((e) => e.slug === words[1]);
-    const header = effect ? parseHeader(effect.source, effect.kind) : null;
+    const header = effect && effect.kind !== "gmic" ? parseHeader(effect.source, effect.kind) : null;
     return header?.ok ? paramItems(header.params, given, word) : [];
   }
   if (command === "api") return apiCandidates(at, sub, words, given, source);
@@ -109,7 +109,7 @@ function candidates(words: string[], given: string[], word: string, source: Line
     const key = source.developKeys().find((k) => k.key === words[at - 1]);
     return key?.kind === "boolean" ? [plain("true"), plain("false")] : [];
   }
-  const own = source.commands[command];
+  const own = tableOf(source.commands)[command];
   return at === 1 && own?.subcommands ? own.subcommands.map((s) => ({ label: s, insert: `${s} ` })) : [];
 }
 
@@ -119,8 +119,8 @@ function fxCandidates(at: number, sub: string | undefined, given: string[], sour
   if (at === 2 && (sub === "edit" || sub === "rm")) return effectItems(effects);
   if (at === 2 && (sub === "apply" || sub === "off")) return effectItems(effects.filter((e) => e.kind === "glsl"));
   if (at >= 3 && sub === "new") {
-    return (["glsl", "js"] as const)
-      .filter((k) => !given.includes(`--${k}`))
+    return (["glsl", "js", "gmic"] as const)
+      .filter((k) => engineReady(k, source) && !given.includes(`--${k}`))
       .map((k) => ({ label: `--${k}`, insert: `--${k} `, detail: ENGINES[k].label }));
   }
   return [];
@@ -144,8 +144,15 @@ function apiCandidates(at: number, sub: string | undefined, words: string[], giv
   return [];
 }
 
+/** Whether effects of `kind` can be made and run: a G'MIC effect needs another
+ *  extension's gmic command. */
+function engineReady(kind: EffectKind, source: LineSource): boolean {
+  if (kind === "gmic") return Object.hasOwn(tableOf(source.commands), "gmic");
+  return !ENGINES[kind].unavailable;
+}
+
 function subItems(command: string, source: LineSource): Suggestion[] {
-  const subs = source.commands[command]?.subcommands ?? [];
+  const subs = tableOf(source.commands)[command]?.subcommands ?? [];
   return subs.map((s) => ({ label: s, insert: `${s} `, detail: SUBCOMMAND_DETAIL[command]?.[s] }));
 }
 

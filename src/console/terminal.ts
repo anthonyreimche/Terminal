@@ -13,8 +13,10 @@ export interface Line {
 }
 
 export interface ProgressLine {
-  update(text: string): void;
-  done(text: string): void;
+  /** Rewrite the line; `fraction` (0 to 1) is how far along it is. */
+  update(text: string, fraction?: number): void;
+  /** Finish the line with `text`, or leave it as it last read. */
+  done(text?: string): void;
 }
 
 export interface CommandContext {
@@ -36,6 +38,14 @@ export interface Command {
 }
 
 export type CommandTable = Readonly<Record<string, Command>>;
+
+/** A table, or a function giving the table as it stands now: other
+ *  extensions' commands come and go while the console is open. */
+export type CommandSource = CommandTable | (() => CommandTable);
+
+export function tableOf(source: CommandSource): CommandTable {
+  return typeof source === "function" ? source() : source;
+}
 
 export interface Snapshot {
   lines: readonly Line[];
@@ -63,7 +73,7 @@ export class Terminal {
   private draft = "";
 
   constructor(
-    private readonly commands: CommandTable,
+    private readonly commands: CommandSource,
     private readonly options: TerminalOptions = {},
   ) {
     const history = (options.history ?? []).slice(-MAX_HISTORY);
@@ -128,7 +138,8 @@ export class Terminal {
     const [name, ...rest] = words;
     if (name === "help") return this.help(rest[0]);
     if (name === "clear") return this.clear();
-    const command = Object.hasOwn(this.commands, name) ? this.commands[name] : undefined;
+    const table = tableOf(this.commands);
+    const command = Object.hasOwn(table, name) ? table[name] : undefined;
     if (!command) {
       this.push("error", `Unknown command "${name}". Type help for the list.`);
       return;
@@ -168,7 +179,12 @@ export class Terminal {
       info: (text) => this.write("info", text),
       progress: (text) => {
         const id = this.push("info", text);
-        return { update: (t) => this.replace(id, t), done: (t) => this.replace(id, t) };
+        return {
+          update: (t) => this.replace(id, t),
+          done: (t) => {
+            if (t !== undefined) this.replace(id, t);
+          },
+        };
       },
       askSecret: (label) =>
         new Promise<string | null>((resolve) => {
@@ -179,8 +195,9 @@ export class Terminal {
   }
 
   private help(name: string | undefined): void {
+    const table = tableOf(this.commands);
     if (name) {
-      const command = Object.hasOwn(this.commands, name) ? this.commands[name] : undefined;
+      const command = Object.hasOwn(table, name) ? table[name] : undefined;
       if (!command) {
         this.push("error", `Unknown command "${name}".`);
         return;
@@ -190,7 +207,7 @@ export class Terminal {
       return;
     }
     const rows: [string, string][] = [
-      ...Object.entries(this.commands).map(([n, c]): [string, string] => [n, c.summary]),
+      ...Object.entries(table).map(([n, c]): [string, string] => [n, c.summary]),
       ["help", "list the commands, or help <command>"],
       ["clear", "clear the console (Ctrl+L)"],
     ];

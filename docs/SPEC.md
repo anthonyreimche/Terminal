@@ -66,10 +66,15 @@ An effect record `{ name, slug, kind, source }` lives in `api.settings`
 (`effects`). `slug` is the name lower-cased, non `[a-z0-9]` runs → `-`,
 trimmed, 1–40 chars; names are unique by slug. `kind` is an **engine** id:
 `glsl`, `js`, or `gmic`. Engines are a table (`engines.ts`) of
-`{ id, label, live, unavailable: string | null, template }`; `gmic` is listed but
-answers "G'MIC isn't available yet", so `fx new --gmic` and `run` on one
-refuse. A later engine (a G'MIC WASM build, or a native bridge) plugs into the
-same table and the same `run` path as JS.
+`{ id, label, live, unavailable: string | null, template }`. `gmic` works only
+while another extension registers a `gmic` command (api.commands; the G'MIC
+extension does): `fx new --gmic` and `run` refuse with its `unavailable` text
+otherwise. `run` on a G'MIC effect is `gmic script --source <source>
+Name=value…` through api.commands.run, so G'MIC reads its `#@gui` settings.
+
+Other extensions' commands (api.commands.list()) join the console's table at
+every line, after the built-ins, which keep their names (1.1.0; needs
+`permissions.commands` and Safelight 3.2.6).
 
 ### Header directives (both kinds)
 
@@ -192,7 +197,6 @@ the URL's origin.
 
 ## 5. Not in 1.0.0
 
-- A G'MIC engine (the table entry is there).
 - Async/polling APIs (job id then poll); vendor presets.
 - Batch `fx apply` across a Library selection (presets do that).
 - Effects in masks.

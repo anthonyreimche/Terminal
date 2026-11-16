@@ -8,6 +8,7 @@ import { Terminal } from "./console/terminal";
 import { webglCompiler, type Compile } from "./effects/glsl";
 import { LiveEffects } from "./effects/live";
 import { makeEffectsPanel } from "./EffectsPanel";
+import { extensionCommands } from "./extension-commands";
 import type { Endpoint } from "./endpoints/endpoint";
 import { EFFECTS_PANEL_ID, PANEL_ID, TOGGLE_ACTION, TOGGLE_COMBO } from "./ids";
 import { EFFECTS_KEY, readEffects, readEndpoints, writeEffects, writeEndpoints, type EffectRecord } from "./library";
@@ -56,7 +57,11 @@ export function activate(api: SafelightAPI, compiler: () => Compile | null = laz
 
   const services = createServices(api, live, (target) => editing.set(target), sync);
   const history = api.settings.get<unknown>(HISTORY, []);
-  const commands = createCommands(services);
+  const builtins = createCommands(services);
+  const reserved = [...Object.keys(builtins), "help", "clear"];
+  // Built here at each line, so another extension's command (G'MIC's gmic)
+  // is there as soon as it registers, and gone once it is turned off.
+  const commands = () => ({ ...extensionCommands(api.commands, services.targets, reserved), ...builtins });
   const terminal = new Terminal(commands, {
     history: Array.isArray(history) ? history.filter((h): h is string => typeof h === "string") : [],
     saveHistory: (h) => api.settings.set(HISTORY, h),

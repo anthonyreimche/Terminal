@@ -142,6 +142,10 @@ export function fakeApi(initial: Record<string, unknown> = {}): Rig {
       },
       isPanelOpen: (id: string) => rig.open.has(id),
     },
+    commands: {
+      list: () => [],
+      run: async () => ({ result: null, saved: [] }),
+    },
     network: {
       requestAccess: async (url: string) => (rig.access.push(url), true),
     },

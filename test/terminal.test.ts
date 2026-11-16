@@ -158,4 +158,30 @@ describe("Terminal", () => {
     await t.submit("p");
     expect(texts(t)).toEqual(["input:p", "info:Worked"]);
   });
+
+  it("leaves a progress line as it last read when done gives no text", async () => {
+    const t = new Terminal({
+      p: {
+        summary: "",
+        usage: "p",
+        run: (ctx) => {
+          const line = ctx.progress("Working");
+          line.update("Halfway", 0.5);
+          line.done();
+        },
+      },
+    });
+    await t.submit("p");
+    expect(texts(t)).toEqual(["input:p", "info:Halfway"]);
+  });
+
+  it("reads a table given as a function at every line, so commands that arrive later run and show in help", async () => {
+    let commands: CommandTable = {};
+    const t = new Terminal(() => commands);
+    commands = { late: { summary: "came later", usage: "late", run: (ctx) => ctx.print("ran") } };
+    await t.submit("late");
+    await t.submit("help");
+    expect(texts(t)).toContain("output:ran");
+    expect(texts(t).some((l) => l.includes("late") && l.includes("came later"))).toBe(true);
+  });
 });

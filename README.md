@@ -71,7 +71,9 @@ A script runs in a worker of its own, without the network functions and without 
 
 ### G'MIC
 
-Not yet. Effects are written for an engine, and a G'MIC engine is planned to run beside JavaScript through the same `run` command.
+With the **G'MIC** extension installed and set up (it runs the gmic program from gmic.eu), its `gmic` command works here: `gmic blur 3 sharpen 50`, `gmic filters sharpen`, `gmic filter "Sharpen [Unsharp Mask]" radius=2`, `gmic script <name>` for a script saved in its panel. Each result is saved beside its photo.
+
+`fx new <name> --gmic` writes a G'MIC effect: G'MIC words, one step a line, with `#@gui : Name = float(default,min,max)` lines for its settings, read as `$1`, `$2` and on. `run <name> radius=3` runs it through the `gmic` command on the photos, a 16-bit PNG beside each one. Other extensions' commands appear in `help` the same way, as soon as they are turned on.
 
 ## Endpoints
 

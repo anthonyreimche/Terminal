@@ -117,3 +117,14 @@ describe("applySuggestion", () => {
     expect(applySuggestion("run posterize l", s, s.items[0])).toEqual({ text: "run posterize levels=", cursor: 21 });
   });
 });
+
+describe("a table given as a function", () => {
+  it("suggests the commands it holds now, with their subcommands", () => {
+    let table: CommandTable = {};
+    const live: LineSource = { ...source, commands: () => table };
+    table = { gmic: cmd("G'MIC", ["filters", "filter"]) };
+    expect(suggestLine("gm", 2, live).items.map((i) => i.label)).toContain("gmic");
+    expect(suggestLine("gmic fil", 8, live).items.map((i) => i.label)).toEqual(["filters", "filter"]);
+  });
+});
+
